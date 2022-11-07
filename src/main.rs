@@ -46,6 +46,8 @@ async fn main() {
     let b2_bucket_id =
         std::env::var(Env::BACKBLAZE_BUCKET_ID).expect("env: BACKBLAZE_BUCKET_ID missing");
 
+    println!("loaded env");
+
     // properties
     let cors = CorsLayer::new().allow_origin(Any);
 
@@ -55,9 +57,13 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
+    println!("connected to db");
+
     let mut b2 = B2::new(Config::new(b2_id, b2_key));
     b2.set_bucket_id(b2_bucket_id);
     b2.login().await.expect("");
+
+    println!("logged in to backblaze");
 
     let state = AppState { pool, b2 };
 
@@ -92,10 +98,10 @@ async fn main() {
         .layer(cors);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    tracing::debug!("listening on {}", addr);
+    println!("listening on {}", addr);
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
-        .expect("failed to start server");
+        .unwrap();
 }
