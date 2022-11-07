@@ -108,7 +108,7 @@ impl GetMediaFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        println!("{:?}", sql);
+        tracing::debug!(%sql);
 
         Ok(sql.to_string())
     }

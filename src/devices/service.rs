@@ -18,7 +18,7 @@ use super::{
     models::device::Device,
 };
 
-pub async fn create_device(user: &User, pool: &PgPool) -> Result<Device, ApiError> {
+pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device, ApiError> {
     let device = Device::new(user);
 
     let sqlx_result = sqlx::query(
@@ -63,7 +63,10 @@ pub async fn create_device(user: &User, pool: &PgPool) -> Result<Device, ApiErro
     }
 }
 
-pub async fn refresh_device(dto: &RefreshDeviceDto, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn refresh_device_as_admin(
+    dto: &RefreshDeviceDto,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
         UPDATE devices SET updated_at = $1
@@ -98,7 +101,7 @@ pub async fn refresh_device(dto: &RefreshDeviceDto, pool: &PgPool) -> Result<(),
     }
 }
 
-pub async fn logout_device(dto: &LogoutDeviceDto, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn logout_device_as_admin(dto: &LogoutDeviceDto, pool: &PgPool) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
         DELETE FROM devices

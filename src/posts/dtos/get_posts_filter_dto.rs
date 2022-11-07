@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::{app::models::api_error::ApiError, posts::models::post::POST_SORTABLE_FIELDS};
+use crate::{app::models::api_error::ApiError, posts::models::post::Post};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct GetPostsFilterDto {
@@ -57,7 +57,7 @@ impl GetPostsFilterDto {
                     message: "Malformed sort query.".to_string(),
                 });
             }
-            if !POST_SORTABLE_FIELDS.contains(&sort_params[0]) {
+            if !Post::sortable_fields().contains(&sort_params[0]) {
                 return Err(ApiError {
                     code: StatusCode::BAD_REQUEST,
                     message: "Invalid sort field.".to_string(),
@@ -107,7 +107,7 @@ impl GetPostsFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        println!("{:?}", sql);
+        tracing::debug!(%sql);
 
         Ok(sql.to_string())
     }

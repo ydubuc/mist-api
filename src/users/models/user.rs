@@ -4,8 +4,6 @@ use uuid::Uuid;
 
 use crate::{app::util::time, auth::dtos::register_dto::RegisterDto};
 
-pub static USER_SORTABLE_FIELDS: [&str; 2] = ["created_at", "updated_at"];
-
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: String,
@@ -40,5 +38,9 @@ impl User {
             updated_at: current_time,
             created_at: current_time,
         };
+    }
+
+    pub fn sortable_fields() -> [&'static str; 2] {
+        return ["created_at", "updated_at"];
     }
 }

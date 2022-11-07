@@ -8,8 +8,6 @@ use crate::{
 
 use super::post_media::PostMedia;
 
-pub static POST_SORTABLE_FIELDS: [&str; 2] = ["created_at", "updated_at"];
-
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Post {
     pub id: String,
@@ -26,7 +24,7 @@ pub struct Post {
 }
 
 impl Post {
-    pub fn new(claims: &Claims, dto: &CreatePostDto, media: &Option<PostMedia>) -> Self {
+    pub fn new(claims: &Claims, dto: &CreatePostDto, _media: &Option<PostMedia>) -> Self {
         let current_time = time::current_time_in_secs();
 
         return Self {
@@ -37,5 +35,9 @@ impl Post {
             updated_at: current_time,
             created_at: current_time,
         };
+    }
+
+    pub fn sortable_fields() -> [&'static str; 2] {
+        return ["created_at", "updated_at"];
     }
 }

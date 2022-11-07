@@ -22,12 +22,10 @@ use super::{
     models::user::User,
 };
 
-pub async fn create_user(dto: &RegisterDto, pool: &PgPool) -> Result<User, ApiError> {
-    let Ok(hash) = hasher::hash(dto.password.to_string()).await else {
-        return Err(ApiError {
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to hash password.".to_string()
-        });
+pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<User, ApiError> {
+    let Ok(hash) = hasher::hash(dto.password.to_string()).await
+    else {
+        return Err(DefaultApiError::InternalServerError.value());
     };
 
     let user = User::new(dto, hash);
@@ -53,18 +51,18 @@ pub async fn create_user(dto: &RegisterDto, pool: &PgPool) -> Result<User, ApiEr
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(_) => Ok(user),
         Err(e) => {
-            let Some(db_err) = e.as_database_error() else {
+            let Some(db_err) = e.as_database_error()
+            else {
+                tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err) else {
+            let Some(code) = get_code_from_db_err(db_err)
+            else {
+                tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
@@ -73,15 +71,23 @@ pub async fn create_user(dto: &RegisterDto, pool: &PgPool) -> Result<User, ApiEr
                     code: StatusCode::CONFLICT,
                     message: "User already exists.".to_string(),
                 }),
-                _ => Err(DefaultApiError::InternalServerError.value()),
+                _ => {
+                    tracing::error!(%e);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
             }
         }
     }
 }
 
-pub async fn get_users(dto: &GetUsersFilterDto, pool: &PgPool) -> Result<Vec<User>, ApiError> {
+pub async fn get_users(
+    dto: &GetUsersFilterDto,
+    _claims: &Claims,
+    pool: &PgPool,
+) -> Result<Vec<User>, ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result else {
+    let Ok(sql) = sql_result
+    else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -96,17 +102,16 @@ pub async fn get_users(dto: &GetUsersFilterDto, pool: &PgPool) -> Result<Vec<Use
 
     let sqlx_result = sqlx.fetch_all(pool).await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(users) => Ok(users),
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }
 
-pub async fn get_user_by_id(id: &str, pool: &PgPool) -> Result<User, ApiError> {
+pub async fn get_user_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<User, ApiError> {
     let sqlx_result = sqlx::query_as::<_, User>(
         "
         SELECT * FROM users WHERE id = $1
@@ -116,25 +121,27 @@ pub async fn get_user_by_id(id: &str, pool: &PgPool) -> Result<User, ApiError> {
     .fetch_optional(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
         },
-        Err(_) => Err(UsersApiError::UserNotFound.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(UsersApiError::UserNotFound.value())
+        }
     }
 }
 
-pub async fn get_user_by_login_dto(login_dto: &LoginDto, pool: &PgPool) -> Result<User, ApiError> {
+pub async fn get_user_by_login_dto_as_admin(
+    login_dto: &LoginDto,
+    pool: &PgPool,
+) -> Result<User, ApiError> {
     if let Some(username) = &login_dto.username {
-        return get_user_by_username(username, pool).await;
+        return get_user_by_username_as_admin(username, pool).await;
     }
     if let Some(email) = &login_dto.email {
-        return get_user_by_email(email, pool).await;
+        return get_user_by_email_as_admin(email, pool).await;
     }
 
     Err(ApiError {
@@ -143,7 +150,10 @@ pub async fn get_user_by_login_dto(login_dto: &LoginDto, pool: &PgPool) -> Resul
     })
 }
 
-pub async fn get_user_by_username(username: &str, pool: &PgPool) -> Result<User, ApiError> {
+pub async fn get_user_by_username_as_admin(
+    username: &str,
+    pool: &PgPool,
+) -> Result<User, ApiError> {
     let sqlx_result = sqlx::query_as::<_, User>(
         "
         SELECT * FROM users
@@ -154,20 +164,19 @@ pub async fn get_user_by_username(username: &str, pool: &PgPool) -> Result<User,
     .fetch_optional(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
         },
-        Err(_) => Err(UsersApiError::UserNotFound.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(UsersApiError::UserNotFound.value())
+        }
     }
 }
 
-pub async fn get_user_by_email(email: &str, pool: &PgPool) -> Result<User, ApiError> {
+pub async fn get_user_by_email_as_admin(email: &str, pool: &PgPool) -> Result<User, ApiError> {
     let sqlx_result = sqlx::query_as::<_, User>(
         "
         SELECT * FROM users
@@ -178,23 +187,22 @@ pub async fn get_user_by_email(email: &str, pool: &PgPool) -> Result<User, ApiEr
     .fetch_optional(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
         },
-        Err(_) => Err(UsersApiError::UserNotFound.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(UsersApiError::UserNotFound.value())
+        }
     }
 }
 
 pub async fn edit_user_by_id(
-    claims: &Claims,
     id: &str,
     dto: &EditUserDto,
+    claims: &Claims,
     pool: &PgPool,
 ) -> Result<User, ApiError> {
     if claims.id != id {
@@ -202,7 +210,8 @@ pub async fn edit_user_by_id(
     }
 
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result else {
+    let Ok(sql) = sql_result
+    else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -213,22 +222,19 @@ pub async fn edit_user_by_id(
     }
     sqlx = sqlx.bind(id);
 
-    let sqlx_result = sqlx.fetch_optional(pool).await;
-
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
-    match sqlx_result {
+    match sqlx.fetch_optional(pool).await {
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }
 
-pub async fn delete_user_by_id(claims: &Claims, id: &str, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn delete_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
     if claims.id != id {
         return Err(UsersApiError::PermissionDenied.value());
     }
@@ -242,15 +248,14 @@ pub async fn delete_user_by_id(claims: &Claims, id: &str, pool: &PgPool) -> Resu
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(result) => match result.rows_affected() > 0 {
             true => Ok(()),
             false => Err(UsersApiError::UserNotFound.value()),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }

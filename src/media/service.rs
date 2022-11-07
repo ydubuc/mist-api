@@ -1,3 +1,5 @@
+use axum::extract::Multipart;
+use b2_backblaze::B2;
 use sqlx::PgPool;
 
 use crate::{
@@ -6,84 +8,114 @@ use crate::{
 };
 
 use super::{
-    dtos::{create_media_dto::CreateMediaDto, get_media_filter_dto::GetMediaFilterDto},
+    backblaze,
+    dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     errors::MediaApiError,
-    models::media::Media,
+    models::{import_media_response::ImportMediaResponse, media::Media},
     services::dalle,
 };
 
-pub async fn create_media(
+pub async fn generate_media(
+    dto: &GenerateMediaDto,
     claims: &Claims,
-    dto: &CreateMediaDto,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
-    match dalle::create_media(claims, dto).await {
-        Ok(media) => {
-            println!("{:?}", media);
+    match dalle::service::create_media(claims, dto).await {
+        Ok(media) => upload_media(media, pool).await,
+        Err(e) => Err(e),
+    }
+}
 
-            let mut sql = "
-            INSERT INTO media (
-                id, user_id, url, width, height, mime_type, source, created_at
-            ) "
-            .to_string();
+pub async fn import_media(
+    multipart: Multipart,
+    claims: &Claims,
+    pool: &PgPool,
+    b2: &B2,
+) -> Result<Vec<Media>, ApiError> {
+    match backblaze::service::upload_files(multipart, b2).await {
+        Ok(responses) => {
+            let mut vec = Vec::new();
 
-            let mut index: u8 = 1;
-            for i in 0..media.len() {
-                if i == 0 {
-                    sql.push_str("VALUES (");
-                } else {
-                    sql.push_str(", (");
-                }
+            for res in responses {
+                let download_url = [
+                    &b2.downloadUrl,
+                    "/b2api/v1/b2_download_file_by_id?fileId=",
+                    &res.file_id,
+                ]
+                .concat();
 
-                for j in 0..8 {
-                    sql.push_str(&["$", &index.to_string()].concat());
-                    index += 1;
+                let import_media_res = ImportMediaResponse {
+                    id: res.file_id.to_string(),
+                    download_url,
+                    backblaze_upload_file_response: res,
+                };
 
-                    if j != 7 {
-                        sql.push_str(", ");
-                    }
-                }
-
-                sql.push_str(")");
+                vec.push(Media::from_import(&import_media_res, claims));
             }
 
-            println!("{}", sql);
-
-            let mut sqlx = sqlx::query(&sql);
-
-            for m in &media {
-                sqlx = sqlx.bind(&m.id);
-                sqlx = sqlx.bind(&m.user_id);
-                sqlx = sqlx.bind(&m.url);
-                sqlx = sqlx.bind(m.width.to_owned() as i16);
-                sqlx = sqlx.bind(m.height.to_owned() as i16);
-                sqlx = sqlx.bind(&m.mime_type);
-                sqlx = sqlx.bind(&m.source);
-                sqlx = sqlx.bind(m.created_at.to_owned() as i64);
-            }
-
-            let sqlx_result = sqlx.execute(pool).await;
-
-            if let Some(error) = sqlx_result.as_ref().err() {
-                println!("{}", error);
-            }
-
-            match sqlx_result {
-                Ok(_) => Ok(media),
-                Err(_) => Err(DefaultApiError::InternalServerError.value()),
-            }
+            return upload_media(vec, pool).await;
         }
         Err(e) => Err(e),
     }
 }
 
+async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+    let mut sql = "
+    INSERT INTO media (
+        id, user_id, url, width, height, mime_type, source, created_at
+    ) "
+    .to_string();
+
+    let mut index: u8 = 1;
+    for i in 0..media.len() {
+        if i == 0 {
+            sql.push_str("VALUES (");
+        } else {
+            sql.push_str(", (");
+        }
+
+        for j in 0..8 {
+            sql.push_str(&["$", &index.to_string()].concat());
+            index += 1;
+
+            if j != 7 {
+                sql.push_str(", ");
+            }
+        }
+
+        sql.push_str(")");
+    }
+
+    let mut sqlx = sqlx::query(&sql);
+
+    for m in &media {
+        sqlx = sqlx.bind(&m.id);
+        sqlx = sqlx.bind(&m.user_id);
+        sqlx = sqlx.bind(&m.url);
+        sqlx = sqlx.bind(m.width.to_owned() as i16);
+        sqlx = sqlx.bind(m.height.to_owned() as i16);
+        sqlx = sqlx.bind(&m.mime_type);
+        sqlx = sqlx.bind(&m.source);
+        sqlx = sqlx.bind(m.created_at.to_owned() as i64);
+    }
+
+    match sqlx.execute(pool).await {
+        Ok(_) => Ok(media),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
 pub async fn get_media(
-    _claims: &Claims,
     dto: &GetMediaFilterDto,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result else {
+    let Ok(sql) = sql_result
+    else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -102,19 +134,16 @@ pub async fn get_media(
         sqlx = sqlx.bind(mime_type);
     }
 
-    let sqlx_result = sqlx.fetch_all(pool).await;
-
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
-    match sqlx_result {
+    match sqlx.fetch_all(pool).await {
         Ok(media) => Ok(media),
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }
 
-pub async fn get_media_by_id(id: &str, pool: &PgPool) -> Result<Media, ApiError> {
+pub async fn get_media_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
         SELECT * FROM media WHERE id = $1
@@ -124,20 +153,19 @@ pub async fn get_media_by_id(id: &str, pool: &PgPool) -> Result<Media, ApiError>
     .fetch_optional(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(post) => match post {
             Some(post) => Ok(post),
             None => Err(MediaApiError::MediaNotFound.value()),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }
 
-pub async fn delete_media_by_id(claims: &Claims, id: &str, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn delete_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
         DELETE FROM media WHERE id = $1 AND user_id = $2
@@ -148,15 +176,14 @@ pub async fn delete_media_by_id(claims: &Claims, id: &str, pool: &PgPool) -> Res
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(result) => match result.rows_affected() > 0 {
             true => Ok(()),
             false => Err(MediaApiError::MediaNotFound.value()),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }

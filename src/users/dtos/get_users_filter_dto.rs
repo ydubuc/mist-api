@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::{app::models::api_error::ApiError, users::models::user::USER_SORTABLE_FIELDS};
+use crate::{app::models::api_error::ApiError, users::models::user::User};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct GetUsersFilterDto {
@@ -46,7 +46,7 @@ impl GetUsersFilterDto {
                     message: "Malformed sort query.".to_string(),
                 });
             }
-            if !USER_SORTABLE_FIELDS.contains(&sort_params[0]) {
+            if !User::sortable_fields().contains(&sort_params[0]) {
                 return Err(ApiError {
                     code: StatusCode::BAD_REQUEST,
                     message: "Invalid sort field.".to_string(),
@@ -96,7 +96,7 @@ impl GetUsersFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        println!("{:?}", sql);
+        tracing::debug!(%sql);
 
         Ok(sql.to_string())
     }

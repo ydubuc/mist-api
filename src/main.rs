@@ -4,7 +4,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use dotenv::dotenv;
+use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -20,17 +20,22 @@ mod users;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub b2: B2,
 }
 
 #[tokio::main]
 async fn main() {
     // environment
-    dotenv().ok();
+    dotenvy::from_filename(".env.development").unwrap();
     let port: u16 = match std::env::var(Env::PORT) {
-        Ok(port) => port.parse().expect("environment: PORT is not a number"),
+        Ok(port) => port.parse().expect("env: PORT is not a number"),
         Err(_) => 3000,
     };
-    let db_url = std::env::var(Env::DATABASE_URL).expect("environment: DATABASE_URL missing");
+    let db_url = std::env::var(Env::DATABASE_URL).expect("env: DATABASE_URL missing");
+    let b2_id = std::env::var(Env::BACKBLAZE_KEY_ID).expect("env: BACKBLAZE_KEY_ID missing");
+    let b2_key = std::env::var(Env::BACKBLAZE_APP_KEY).expect("env: BACKBLAZE_KEY_ID missing");
+    let b2_bucket_id =
+        std::env::var(Env::BACKBLAZE_BUCKET_ID).expect("env: BACKBLAZE_BUCKET_ID missing");
 
     // tracing
     tracing_subscriber::fmt::init();
@@ -44,7 +49,11 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
-    let state = AppState { pool };
+    let mut b2 = B2::new(Config::new(b2_id, b2_key));
+    b2.set_bucket_id(b2_bucket_id);
+    b2.login().await.expect("");
+
+    let state = AppState { pool, b2 };
 
     // app
     let app = Router::with_state(state)
@@ -67,14 +76,17 @@ async fn main() {
         .route("/posts/:id", patch(posts::controller::edit_post_by_id))
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // media
-        .route("/media", post(media::controller::create_media))
+        .route("/media/generate", post(media::controller::generate_media))
+        .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
         .route("/media/:id", delete(media::controller::delete_media_by_id))
+        // layers
         .layer(cors);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::debug!("listening on {}", addr);
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await

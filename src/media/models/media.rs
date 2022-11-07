@@ -7,9 +7,12 @@ use crate::{
     app::util::time,
     auth::jwt::models::claims::Claims,
     media::{
-        constants::Source, dtos::create_media_dto::CreateMediaDto, services::dalle::DalleResponse,
+        dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
+        services::dalle::models::dalle_generate_image_response::DalleGenerateImageResponse,
     },
 };
+
+use super::import_media_response::ImportMediaResponse;
 
 pub static MEDIA_SORTABLE_FIELDS: [&str; 1] = ["created_at"];
 
@@ -29,30 +32,42 @@ pub struct Media {
 }
 
 impl Media {
-    pub fn new(claims: &Claims, dto: &CreateMediaDto, dalle_response: &DalleResponse) -> Vec<Self> {
+    pub fn from_dalle(
+        dto: &GenerateMediaDto,
+        dalle_generate_image_response: &DalleGenerateImageResponse,
+        claims: &Claims,
+    ) -> Vec<Self> {
         let mut vec = Vec::new();
-        let mut width: u16 = 512;
-        let mut height: u16 = 512;
 
-        let size_split: Vec<&str> = dto.size.split("x").collect();
-        if size_split.len() == 2 {
-            width = size_split[0].parse().unwrap_or(width);
-            height = size_split[1].parse().unwrap_or(height);
-        }
-
-        for data in &dalle_response.data {
+        for data in &dalle_generate_image_response.data {
             vec.push(Self {
                 id: Uuid::new_v4().to_string(),
                 user_id: claims.id.to_string(),
                 url: data.url.to_string(),
-                width: width,
-                height: height,
+                width: dto.width.to_owned(),
+                height: dto.height.to_owned(),
                 mime_type: IMAGE_PNG.to_string(),
-                source: Source::DALLE.to_string(),
+                source: MediaSource::Dalle.value(),
                 created_at: time::current_time_in_secs(),
             })
         }
 
         return vec;
+    }
+
+    pub fn from_import(import_media_response: &ImportMediaResponse, claims: &Claims) -> Self {
+        Self {
+            id: import_media_response.id.to_string(),
+            user_id: claims.id.to_string(),
+            url: import_media_response.download_url.to_string(),
+            width: 512,
+            height: 512,
+            mime_type: import_media_response
+                .backblaze_upload_file_response
+                .content_type
+                .to_string(),
+            source: MediaSource::Import.value(),
+            created_at: time::current_time_in_secs(),
+        }
     }
 }
