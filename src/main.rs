@@ -28,8 +28,13 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
+    // tracing
+    tracing_subscriber::fmt::init();
+
     // environment
-    dotenvy::from_filename(".env.development").unwrap();
+    if let Err(e) = dotenvy::from_filename(".env.development") {
+        tracing::error!(%e);
+    }
 
     let port: u16 = match std::env::var(Env::PORT) {
         Ok(port) => port.parse().expect("env: PORT is not a number"),
@@ -40,9 +45,6 @@ async fn main() {
     let b2_key = std::env::var(Env::BACKBLAZE_APP_KEY).expect("env: BACKBLAZE_KEY_ID missing");
     let b2_bucket_id =
         std::env::var(Env::BACKBLAZE_BUCKET_ID).expect("env: BACKBLAZE_BUCKET_ID missing");
-
-    // tracing
-    tracing_subscriber::fmt::init();
 
     // properties
     let cors = CorsLayer::new().allow_origin(Any);
