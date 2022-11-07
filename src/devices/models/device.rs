@@ -10,15 +10,13 @@ pub struct Device {
     pub user_id: String,
     #[serde(skip_serializing)]
     pub refresh_token: String,
-    #[sqlx(try_from = "i64")]
-    pub updated_at: u64,
-    #[sqlx(try_from = "i64")]
-    pub created_at: u64,
+    pub updated_at: i64,
+    pub created_at: i64,
 }
 
 impl Device {
     pub fn new(user: &User) -> Self {
-        let current_time = time::current_time_in_secs();
+        let current_time = time::current_time_in_secs() as i64;
 
         return Self {
             id: Uuid::new_v4().to_string(),
@@ -27,5 +25,9 @@ impl Device {
             updated_at: current_time,
             created_at: current_time,
         };
+    }
+
+    pub fn sortable_fields() -> [&'static str; 2] {
+        return ["updated_at", "created_at"];
     }
 }

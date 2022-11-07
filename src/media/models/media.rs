@@ -8,7 +8,7 @@ use crate::{
     auth::jwt::models::claims::Claims,
     media::{
         dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
-        services::dalle::models::dalle_generate_image_response::DalleGenerateImageResponse,
+        util::dalle::models::dalle_generate_image_response::DalleGenerateImageResponse,
     },
 };
 
@@ -21,14 +21,11 @@ pub struct Media {
     pub id: String,
     pub user_id: String,
     pub url: String,
-    #[sqlx(try_from = "i16")]
-    pub width: u16,
-    #[sqlx(try_from = "i16")]
-    pub height: u16,
+    pub width: i16,
+    pub height: i16,
     pub mime_type: String,
     pub source: String,
-    #[sqlx(try_from = "i64")]
-    pub created_at: u64,
+    pub created_at: i64,
 }
 
 impl Media {
@@ -44,11 +41,11 @@ impl Media {
                 id: Uuid::new_v4().to_string(),
                 user_id: claims.id.to_string(),
                 url: data.url.to_string(),
-                width: dto.width.to_owned(),
-                height: dto.height.to_owned(),
+                width: dto.width as i16,
+                height: dto.height as i16,
                 mime_type: IMAGE_PNG.to_string(),
                 source: MediaSource::Dalle.value(),
-                created_at: time::current_time_in_secs(),
+                created_at: time::current_time_in_secs() as i64,
             })
         }
 
@@ -67,7 +64,7 @@ impl Media {
                 .content_type
                 .to_string(),
             source: MediaSource::Import.value(),
-            created_at: time::current_time_in_secs(),
+            created_at: time::current_time_in_secs() as i64,
         }
     }
 }

@@ -1,18 +1,22 @@
-use axum::extract::Multipart;
+use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
 use sqlx::PgPool;
 
 use crate::{
-    app::{errors::DefaultApiError, models::api_error::ApiError},
+    app::{
+        errors::DefaultApiError, models::api_error::ApiError,
+        util::multipart::multipart::get_files_properties,
+    },
     auth::jwt::models::claims::Claims,
+    posts::{self, dtos::create_post_dto::CreatePostDto},
 };
 
 use super::{
-    backblaze,
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
+    enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::{import_media_response::ImportMediaResponse, media::Media},
-    services::dalle,
+    util::{self, dalle},
 };
 
 pub async fn generate_media(
@@ -20,9 +24,30 @@ pub async fn generate_media(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
-    match dalle::service::create_media(claims, dto).await {
-        Ok(media) => upload_media(media, pool).await,
-        Err(e) => Err(e),
+    match dto.generator.as_ref() {
+        MediaGenerator::DALLE => match dalle::service::generate_media(claims, dto).await {
+            Ok(media) => match upload_media(media, pool).await {
+                Ok(media) => {
+                    for m in &media {
+                        let dto = CreatePostDto {
+                            title: dto.prompt.to_string(),
+                            content: None,
+                            media_id: Some(m.id.to_string()),
+                        };
+
+                        let result = posts::service::create_post(&dto, claims, pool).await;
+                    }
+
+                    Ok(media)
+                }
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        },
+        _ => Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "Media generator not supported".to_string(),
+        }),
     }
 }
 
@@ -32,7 +57,18 @@ pub async fn import_media(
     pool: &PgPool,
     b2: &B2,
 ) -> Result<Vec<Media>, ApiError> {
-    match backblaze::service::upload_files(multipart, b2).await {
+    let files_properties = get_files_properties(multipart).await;
+
+    if files_properties.len() == 0 {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "Received nothing to upload.".to_string(),
+        });
+    }
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+
+    match util::backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
         Ok(responses) => {
             let mut vec = Vec::new();
 
@@ -40,17 +76,24 @@ pub async fn import_media(
                 let download_url = [
                     &b2.downloadUrl,
                     "/b2api/v1/b2_download_file_by_id?fileId=",
-                    &res.file_id,
+                    &res.1.file_id,
                 ]
                 .concat();
 
                 let import_media_res = ImportMediaResponse {
-                    id: res.file_id.to_string(),
+                    id: res.0.to_string(),
                     download_url,
-                    backblaze_upload_file_response: res,
+                    backblaze_upload_file_response: res.1,
                 };
 
                 vec.push(Media::from_import(&import_media_res, claims));
+            }
+
+            if vec.len() == 0 {
+                return Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to upload files.".to_string(),
+                });
             }
 
             return upload_media(vec, pool).await;
@@ -110,7 +153,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
 
 pub async fn get_media(
     dto: &GetMediaFilterDto,
-    _claims: &Claims,
+    claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
     let sql_result = dto.to_sql();
@@ -143,7 +186,7 @@ pub async fn get_media(
     }
 }
 
-pub async fn get_media_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
+pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
         SELECT * FROM media WHERE id = $1

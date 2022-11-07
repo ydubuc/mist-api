@@ -12,7 +12,10 @@ use reqwest::{header, StatusCode};
 
 use super::models::dalle_generate_image_response::DalleGenerateImageResponse;
 
-pub async fn create_media(claims: &Claims, dto: &GenerateMediaDto) -> Result<Vec<Media>, ApiError> {
+pub async fn generate_media(
+    claims: &Claims,
+    dto: &GenerateMediaDto,
+) -> Result<Vec<Media>, ApiError> {
     match dalle_generate_image(dto).await {
         Ok(dalle_response) => {
             let media = Media::from_dalle(dto, &dalle_response, claims);

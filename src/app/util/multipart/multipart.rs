@@ -1,5 +1,6 @@
 use axum::extract::Multipart;
 use mime::Mime;
+use uuid::Uuid;
 
 use super::models::file_properties::FileProperties;
 
@@ -18,6 +19,7 @@ pub async fn get_files_properties(mut multipart: Multipart) -> Vec<FilePropertie
         let Ok(data) = field.bytes().await else { continue };
 
         let properties = FileProperties {
+            id: Uuid::new_v4().to_string(),
             field_name,
             file_name,
             mime_type,
@@ -28,27 +30,4 @@ pub async fn get_files_properties(mut multipart: Multipart) -> Vec<FilePropertie
     }
 
     vec
-
-    // match multipart.next_field().await {
-    //     Ok(field) => {
-    //         let Some(field) = field else { return None };
-
-    //         let field_name = field.name()?.to_string();
-    //         let file_name = field.file_name()?.to_string();
-    //         let mime_type: Mime = field.content_type()?.to_string().parse().unwrap();
-
-    //         let Ok(data) = field.bytes().await else { return None };
-
-    //         Some(FileProperties {
-    //             field_name,
-    //             file_name,
-    //             mime_type,
-    //             data,
-    //         })
-    //     }
-    //     Err(e) => {
-    //         tracing::error!(%e);
-    //         None
-    //     }
-    // }
 }

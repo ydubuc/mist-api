@@ -9,11 +9,15 @@ use crate::{
         models::api_error::ApiError,
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
+    auth::jwt::models::claims::Claims,
     users::models::user::User,
 };
 
 use super::{
-    dtos::{logout_device_dto::LogoutDeviceDto, refresh_device_dto::RefreshDeviceDto},
+    dtos::{
+        get_devices_filter_dto::GetDevicesFilterDto, logout_device_dto::LogoutDeviceDto,
+        refresh_device_dto::RefreshDeviceDto,
+    },
     errors::DevicesApiError,
     models::device::Device,
 };
@@ -37,18 +41,18 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(_) => Ok(device),
         Err(e) => {
-            let Some(db_err) = e.as_database_error() else {
+            let Some(db_err) = e.as_database_error()
+            else {
+                tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err) else {
+            let Some(code) = get_code_from_db_err(db_err)
+            else {
+                tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
@@ -57,8 +61,45 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
                     code: StatusCode::CONFLICT,
                     message: "Device already exists.".to_string(),
                 }),
-                _ => Err(DefaultApiError::InternalServerError.value()),
+                _ => {
+                    tracing::error!(%e);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
             }
+        }
+    }
+}
+
+pub async fn get_devices(
+    dto: &GetDevicesFilterDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<Vec<Device>, ApiError> {
+    if dto.user_id != claims.id {
+        return Err(ApiError {
+            code: StatusCode::UNAUTHORIZED,
+            message: "Permission denied.".to_string(),
+        });
+    }
+
+    let sql_result = dto.to_sql();
+    let Ok(sql) = sql_result
+    else {
+        return Err(sql_result.err().unwrap());
+    };
+
+    let mut sqlx = sqlx::query_as::<_, Device>(&sql);
+
+    if let Some(id) = &dto.id {
+        sqlx = sqlx.bind(id);
+    }
+    sqlx = sqlx.bind(&dto.user_id);
+
+    match sqlx.fetch_all(pool).await {
+        Ok(devices) => Ok(devices),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
@@ -85,10 +126,6 @@ pub async fn refresh_device_as_admin(
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(result) => match result.rows_affected() > 0 {
             true => Ok(()),
@@ -97,7 +134,10 @@ pub async fn refresh_device_as_admin(
                 message: "Failed to refresh.".to_string(),
             }),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }
 
@@ -114,15 +154,14 @@ pub async fn logout_device_as_admin(dto: &LogoutDeviceDto, pool: &PgPool) -> Res
     .execute(pool)
     .await;
 
-    if let Some(error) = sqlx_result.as_ref().err() {
-        println!("{}", error);
-    }
-
     match sqlx_result {
         Ok(result) => match result.rows_affected() > 0 {
             true => Ok(()),
             false => Err(DevicesApiError::DeviceNotFound.value()),
         },
-        Err(_) => Err(DefaultApiError::InternalServerError.value()),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }

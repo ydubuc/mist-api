@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use std::net::SocketAddr;
 
 use axum::{
@@ -27,6 +30,7 @@ pub struct AppState {
 async fn main() {
     // environment
     dotenvy::from_filename(".env.development").unwrap();
+
     let port: u16 = match std::env::var(Env::PORT) {
         Ok(port) => port.parse().expect("env: PORT is not a number"),
         Err(_) => 3000,
@@ -62,6 +66,7 @@ async fn main() {
         .route("/auth/register", post(auth::controller::register))
         .route("/auth/login", post(auth::controller::login))
         .route("/auth/refresh", post(auth::controller::refresh))
+        .route("/auth/devices", get(auth::controller::get_devices))
         .route("/auth/logout", post(auth::controller::logout))
         // users
         .route("/users", get(users::controller::get_users))
@@ -90,5 +95,5 @@ async fn main() {
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
-        .unwrap();
+        .expect("failed to start server");
 }

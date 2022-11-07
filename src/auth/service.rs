@@ -5,14 +5,18 @@ use crate::{
     app::{errors::DefaultApiError, models::api_error::ApiError, util::hasher},
     devices::{
         self,
-        dtos::{logout_device_dto::LogoutDeviceDto, refresh_device_dto::RefreshDeviceDto},
+        dtos::{
+            get_devices_filter_dto::GetDevicesFilterDto, logout_device_dto::LogoutDeviceDto,
+            refresh_device_dto::RefreshDeviceDto,
+        },
+        models::device::Device,
     },
     users,
 };
 
 use super::{
     dtos::{login_dto::LoginDto, register_dto::RegisterDto},
-    jwt::util::sign_jwt,
+    jwt::{models::claims::Claims, util::sign_jwt},
     models::access_info::AccessInfo,
 };
 
@@ -57,6 +61,14 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
         }
         Err(e) => Err(e),
     }
+}
+
+pub async fn get_devices(
+    dto: &GetDevicesFilterDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<Vec<Device>, ApiError> {
+    return devices::service::get_devices(dto, claims, pool).await;
 }
 
 pub async fn refresh(dto: &RefreshDeviceDto, pool: &PgPool) -> Result<AccessInfo, ApiError> {

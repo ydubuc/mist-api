@@ -8,6 +8,7 @@ use crate::{
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
     auth::jwt::models::claims::Claims,
+    media::{self, models::media::Media},
 };
 
 use super::{
@@ -24,20 +25,39 @@ pub async fn create_post(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<Post, ApiError> {
-    let post = Post::new(claims, dto, &None);
+    let mut media: Option<Media> = None;
+
+    if let Some(media_id) = &dto.media_id {
+        match media::service::get_media_by_id(media_id, claims, pool).await {
+            Ok(m) => {
+                if claims.id != m.user_id {
+                    return Err(ApiError {
+                        code: StatusCode::UNAUTHORIZED,
+                        message: "Permission denied.".to_string(),
+                    });
+                }
+
+                media = Some(m)
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    let post = Post::new(claims, dto, media);
 
     let sqlx_result = sqlx::query(
         "
         INSERT INTO posts (
-            id, user_id, title, content, updated_at, created_at
+            id, user_id, title, content, media, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ",
     )
     .bind(&post.id)
     .bind(&post.user_id)
     .bind(&post.title)
     .bind(&post.content)
+    .bind(&post.media)
     .bind(post.updated_at.to_owned() as i64)
     .bind(post.created_at.to_owned() as i64)
     .execute(pool)
@@ -74,7 +94,7 @@ pub async fn create_post(
 
 pub async fn get_posts(
     dto: &GetPostsFilterDto,
-    _claims: &Claims,
+    claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Post>, ApiError> {
     let sql_result = dto.to_sql();
@@ -104,10 +124,11 @@ pub async fn get_posts(
     }
 }
 
-pub async fn get_post_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
+pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Post>(
         "
-        SELECT * FROM posts WHERE id = $1
+        SELECT * FROM posts
+        WHERE posts.id = $1
         ",
     )
     .bind(id)
@@ -116,7 +137,10 @@ pub async fn get_post_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result
 
     match sqlx_result {
         Ok(post) => match post {
-            Some(post) => Ok(post),
+            Some(post) => {
+                println!("{:?}", post);
+                return Ok(post);
+            }
             None => Err(PostsApiError::PostNotFound.value()),
         },
         Err(e) => {

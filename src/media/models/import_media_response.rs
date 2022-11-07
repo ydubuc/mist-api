@@ -1,4 +1,4 @@
-use crate::media::backblaze::models::backblaze_upload_file_response::BackblazeUploadFileResponse;
+use crate::media::util::backblaze::models::backblaze_upload_file_response::BackblazeUploadFileResponse;
 
 #[derive(Debug)]
 pub struct ImportMediaResponse {
