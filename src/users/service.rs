@@ -217,6 +217,10 @@ pub async fn edit_user_by_id(
 
     let mut sqlx = sqlx::query_as::<_, User>(&sql);
 
+    if let Some(username) = &dto.username {
+        sqlx = sqlx.bind(username);
+        sqlx = sqlx.bind(username.to_lowercase());
+    }
     if let Some(displayname) = &dto.displayname {
         sqlx = sqlx.bind(displayname);
     }

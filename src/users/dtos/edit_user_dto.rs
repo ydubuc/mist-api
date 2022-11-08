@@ -11,6 +11,12 @@ pub struct EditUserDto {
     #[validate(length(
         min = 3,
         max = 24,
+        message = "username must be between 3 and 24 characters."
+    ))]
+    pub username: Option<String>,
+    #[validate(length(
+        min = 3,
+        max = 24,
         message = "displayname must be between 3 and 24 characters."
     ))]
     pub displayname: Option<String>,
@@ -24,6 +30,13 @@ impl EditUserDto {
         let mut index: u8 = 1;
 
         // SET CLAUSES
+        if self.username.is_some() {
+            clauses.push(["username = $", &index.to_string()].concat());
+            index += 1;
+
+            clauses.push(["username_key = $", &index.to_string()].concat());
+            index += 1;
+        }
         if self.displayname.is_some() {
             clauses.push(["displayname = $", &index.to_string()].concat());
             index += 1;
