@@ -13,7 +13,8 @@ use crate::{
     },
     auth::jwt::models::claims::Claims,
     media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
+        self, dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
+        models::media::Media, util::backblaze,
     },
 };
 use reqwest::{header, StatusCode};
@@ -54,7 +55,12 @@ pub async fn generate_media(
             let sub_folder = Some(["media/", &claims.id].concat());
             match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
                 Ok(responses) => {
-                    let media = media::service::create_media_from_responses(responses, claims, b2);
+                    let media = media::service::create_media_from_responses(
+                        responses,
+                        MediaSource::Dalle,
+                        claims,
+                        b2,
+                    );
 
                     if media.len() == 0 {
                         return Err(ApiError {

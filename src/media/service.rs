@@ -7,19 +7,20 @@ use crate::{
     app::{
         errors::DefaultApiError,
         models::api_error::ApiError,
-        util::multipart::{
-            models::file_properties::FileProperties, multipart::get_files_properties,
+        util::{
+            multipart::{models::file_properties::FileProperties, multipart::get_files_properties},
+            time,
         },
     },
     auth::jwt::models::claims::Claims,
-    posts::{self, dtos::create_post_dto::CreatePostDto},
+    posts,
 };
 
 use super::{
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
-    enums::media_generator::MediaGenerator,
+    enums::{media_generator::MediaGenerator, media_source::MediaSource},
     errors::MediaApiError,
-    models::{import_media_response::ImportMediaResponse, media::Media},
+    models::media::Media,
     util::{
         backblaze::{self, models::backblaze_upload_file_response::BackblazeUploadFileResponse},
         dalle,
@@ -36,7 +37,7 @@ pub async fn generate_media(
         MediaGenerator::DALLE => {
             match dalle::service::generate_media(dto, claims, pool, b2).await {
                 Ok(media) => {
-                    match posts::service::create_posts_with_media(dto, &media, claims, pool).await {
+                    match posts::service::create_post_with_media(dto, &media, claims, pool).await {
                         Ok(_) => Ok(media),
                         Err(e) => Err(e),
                     }
@@ -89,7 +90,7 @@ pub async fn import_media(
 
     match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
         Ok(responses) => {
-            let media = create_media_from_responses(responses, claims, b2);
+            let media = create_media_from_responses(responses, MediaSource::Import, claims, b2);
 
             if media.len() == 0 {
                 return Err(ApiError {
@@ -106,6 +107,7 @@ pub async fn import_media(
 
 pub fn create_media_from_responses(
     responses: Vec<(FileProperties, BackblazeUploadFileResponse)>,
+    source: MediaSource,
     claims: &Claims,
     b2: &B2,
 ) -> Vec<Media> {
@@ -127,14 +129,19 @@ pub fn create_media_from_responses(
             },
         };
 
-        let import_media_res = ImportMediaResponse {
+        let media = Media {
             id: res.0.id.to_string(),
-            download_url,
-            size,
-            backblaze_upload_file_response: res.1,
+            user_id: claims.id.to_string(),
+            file_id: res.1.file_id.to_string(),
+            url: download_url,
+            width: size.width as i16,
+            height: size.height as i16,
+            mime_type: res.0.mime_type.to_string(),
+            source: source.value(),
+            created_at: time::current_time_in_secs() as i64,
         };
 
-        vec.push(Media::from_import(&import_media_res, claims));
+        vec.push(media);
     }
 
     return vec;

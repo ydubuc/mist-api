@@ -25,21 +25,29 @@ pub async fn create_post(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<Post, ApiError> {
-    let mut media: Option<Media> = None;
+    let mut media: Option<Vec<Media>> = None;
 
-    if let Some(media_id) = &dto.media_id {
-        match media::service::get_media_by_id(media_id, claims, pool).await {
-            Ok(m) => {
-                if claims.id != m.user_id {
-                    return Err(ApiError {
-                        code: StatusCode::UNAUTHORIZED,
-                        message: "Permission denied.".to_string(),
-                    });
+    if let Some(media_ids) = &dto.media_ids {
+        let mut temp_media = Vec::new();
+
+        for media_id in media_ids {
+            match media::service::get_media_by_id(media_id, claims, pool).await {
+                Ok(m) => {
+                    if claims.id != m.user_id {
+                        return Err(ApiError {
+                            code: StatusCode::UNAUTHORIZED,
+                            message: "Permission denied.".to_string(),
+                        });
+                    }
+
+                    temp_media.push(m);
                 }
-
-                media = Some(m)
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
+        }
+
+        if temp_media.len() > 0 {
+            media = Some(temp_media);
         }
     }
 
@@ -58,8 +66,8 @@ pub async fn create_post(
     .bind(&post.title)
     .bind(&post.content)
     .bind(&post.media)
-    .bind(post.updated_at.to_owned() as i64)
-    .bind(post.created_at.to_owned() as i64)
+    .bind(&post.updated_at)
+    .bind(&post.created_at)
     .execute(pool)
     .await;
 
@@ -92,28 +100,28 @@ pub async fn create_post(
     }
 }
 
-pub async fn create_posts_with_media(
+pub async fn create_post_with_media(
     generate_media_dto: &GenerateMediaDto,
     media: &Vec<Media>,
     claims: &Claims,
     pool: &PgPool,
-) -> Result<Vec<Post>, ApiError> {
-    let mut posts = Vec::new();
+) -> Result<Post, ApiError> {
+    let mut media_ids = Vec::new();
 
     for m in media {
-        let dto = CreatePostDto {
-            title: generate_media_dto.prompt.to_string(),
-            content: None,
-            media_id: Some(m.id.to_string()),
-        };
-
-        match create_post(&dto, claims, pool).await {
-            Ok(post) => posts.push(post),
-            Err(e) => return Err(e),
-        }
+        media_ids.push(m.id.to_string());
     }
 
-    Ok(posts)
+    let dto = CreatePostDto {
+        title: generate_media_dto.prompt.to_string(),
+        content: None,
+        media_ids: Some(media_ids),
+    };
+
+    match create_post(&dto, claims, pool).await {
+        Ok(post) => Ok(post),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn get_posts(
