@@ -97,7 +97,7 @@ async fn main() {
         // layers
         .layer(cors);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("listening on {}", addr);
 
     axum::Server::bind(&addr)
