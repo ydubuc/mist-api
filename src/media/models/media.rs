@@ -32,8 +32,8 @@ impl Media {
                 .file_id
                 .to_string(),
             url: import_media_response.download_url.to_string(),
-            width: 512,
-            height: 512,
+            width: import_media_response.size.width as i16,
+            height: import_media_response.size.height as i16,
             mime_type: import_media_response
                 .backblaze_upload_file_response
                 .content_type

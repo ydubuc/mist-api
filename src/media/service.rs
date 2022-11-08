@@ -1,11 +1,15 @@
 use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
+use imagesize::ImageSize;
 use sqlx::PgPool;
 
 use crate::{
     app::{
-        errors::DefaultApiError, models::api_error::ApiError,
-        util::multipart::multipart::get_files_properties,
+        errors::DefaultApiError,
+        models::api_error::ApiError,
+        util::multipart::{
+            models::file_properties::FileProperties, multipart::get_files_properties,
+        },
     },
     auth::jwt::models::claims::Claims,
     posts::{self, dtos::create_post_dto::CreatePostDto},
@@ -15,8 +19,11 @@ use super::{
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
-    models::media::Media,
-    util::{backblaze, dalle},
+    models::{import_media_response::ImportMediaResponse, media::Media},
+    util::{
+        backblaze::{self, models::backblaze_upload_file_response::BackblazeUploadFileResponse},
+        dalle,
+    },
 };
 
 pub async fn generate_media(
@@ -28,22 +35,12 @@ pub async fn generate_media(
     match dto.generator.as_ref() {
         MediaGenerator::DALLE => {
             match dalle::service::generate_media(dto, claims, pool, b2).await {
-                Ok(media) => match upload_media(media, pool).await {
-                    Ok(media) => {
-                        for m in &media {
-                            let dto = CreatePostDto {
-                                title: dto.prompt.to_string(),
-                                content: None,
-                                media_id: Some(m.id.to_string()),
-                            };
-
-                            let result = posts::service::create_post(&dto, claims, pool).await;
-                        }
-
-                        Ok(media)
+                Ok(media) => {
+                    match posts::service::create_posts_with_media(dto, &media, claims, pool).await {
+                        Ok(_) => Ok(media),
+                        Err(e) => Err(e),
                     }
-                    Err(e) => Err(e),
-                },
+                }
                 Err(e) => Err(e),
             }
         }
@@ -69,8 +66,8 @@ pub async fn import_media(
         });
     }
 
-    for f in &files_properties {
-        if f.mime_type.type_() != mime::IMAGE {
+    for file_properties in &files_properties {
+        if file_properties.mime_type.type_() != mime::IMAGE {
             return Err(ApiError {
                 code: StatusCode::BAD_REQUEST,
                 message: "Files must be of type image.".to_string(),
@@ -78,11 +75,21 @@ pub async fn import_media(
         }
     }
 
+    for file_properties in &files_properties {
+        let Ok(size) = imagesize::blob_size(&file_properties.data)
+        else {
+            return Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to get image size.".to_string()
+            })
+        };
+    }
+
     let sub_folder = Some(["media/", &claims.id].concat());
 
     match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
         Ok(responses) => {
-            let media = backblaze::service::create_media_from_responses(responses, claims, b2);
+            let media = create_media_from_responses(responses, claims, b2);
 
             if media.len() == 0 {
                 return Err(ApiError {
@@ -95,6 +102,42 @@ pub async fn import_media(
         }
         Err(e) => Err(e),
     }
+}
+
+pub fn create_media_from_responses(
+    responses: Vec<(FileProperties, BackblazeUploadFileResponse)>,
+    claims: &Claims,
+    b2: &B2,
+) -> Vec<Media> {
+    let mut vec = Vec::new();
+
+    for res in responses {
+        let download_url = [
+            &b2.downloadUrl,
+            "/b2api/v1/b2_download_file_by_id?fileId=",
+            &res.1.file_id,
+        ]
+        .concat();
+
+        let size = match imagesize::blob_size(&res.0.data) {
+            Ok(size) => size,
+            Err(e) => ImageSize {
+                width: 512,
+                height: 512,
+            },
+        };
+
+        let import_media_res = ImportMediaResponse {
+            id: res.0.id.to_string(),
+            download_url,
+            size,
+            backblaze_upload_file_response: res.1,
+        };
+
+        vec.push(Media::from_import(&import_media_res, claims));
+    }
+
+    return vec;
 }
 
 pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {

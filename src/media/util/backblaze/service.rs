@@ -2,13 +2,9 @@ use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
 
-use crate::{
-    app::{
-        errors::DefaultApiError, models::api_error::ApiError,
-        util::multipart::models::file_properties::FileProperties,
-    },
-    auth::jwt::models::claims::Claims,
-    media::models::{import_media_response::ImportMediaResponse, media::Media},
+use crate::app::{
+    errors::DefaultApiError, models::api_error::ApiError,
+    util::multipart::models::file_properties::FileProperties,
 };
 
 use super::models::{
@@ -21,7 +17,7 @@ pub async fn upload_files(
     files_properties: Vec<FileProperties>,
     sub_folder: &Option<String>,
     b2: &B2,
-) -> Result<Vec<(String, BackblazeUploadFileResponse)>, ApiError> {
+) -> Result<Vec<(FileProperties, BackblazeUploadFileResponse)>, ApiError> {
     let client = reqwest::Client::new();
     let mut responses = Vec::new();
 
@@ -40,7 +36,7 @@ async fn upload_file(
     sub_folder: &Option<String>,
     client: &reqwest::Client,
     b2: &B2,
-) -> Result<(String, BackblazeUploadFileResponse), ApiError> {
+) -> Result<(FileProperties, BackblazeUploadFileResponse), ApiError> {
     let upload_url_result = get_upload_url(&b2.bucketId, b2, client).await;
 
     match upload_url_result {
@@ -69,14 +65,14 @@ async fn upload_file(
             let result = client
                 .post(upload_url_res.upload_url)
                 .headers(headers)
-                .body(file_properties.data)
+                .body(file_properties.data.to_owned())
                 .send()
                 .await;
 
             match result {
                 Ok(res) => match res.text().await {
                     Ok(text) => match serde_json::from_str(&text) {
-                        Ok(upload_file_res) => Ok((file_properties.id, upload_file_res)),
+                        Ok(upload_file_res) => Ok((file_properties, upload_file_res)),
                         Err(_) => {
                             tracing::error!(%text);
                             return Err(DefaultApiError::InternalServerError.value());
@@ -95,33 +91,6 @@ async fn upload_file(
         }
         Err(e) => Err(e),
     }
-}
-
-pub fn create_media_from_responses(
-    responses: Vec<(String, BackblazeUploadFileResponse)>,
-    claims: &Claims,
-    b2: &B2,
-) -> Vec<Media> {
-    let mut vec = Vec::new();
-
-    for res in responses {
-        let download_url = [
-            &b2.downloadUrl,
-            "/b2api/v1/b2_download_file_by_id?fileId=",
-            &res.1.file_id,
-        ]
-        .concat();
-
-        let import_media_res = ImportMediaResponse {
-            id: res.0.to_string(),
-            download_url,
-            backblaze_upload_file_response: res.1,
-        };
-
-        vec.push(Media::from_import(&import_media_res, claims));
-    }
-
-    return vec;
 }
 
 async fn get_upload_url(

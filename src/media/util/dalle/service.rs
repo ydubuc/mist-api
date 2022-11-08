@@ -12,7 +12,9 @@ use crate::{
         util::multipart::models::file_properties::FileProperties,
     },
     auth::jwt::models::claims::Claims,
-    media::{dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze},
+    media::{
+        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
+    },
 };
 use reqwest::{header, StatusCode};
 
@@ -26,7 +28,7 @@ pub async fn generate_media(
 ) -> Result<Vec<Media>, ApiError> {
     match dalle_generate_image(dto).await {
         Ok(dalle_response) => {
-            let mut vec = Vec::new();
+            let mut files_properties = Vec::new();
 
             for data in &dalle_response.data {
                 match app::util::reqwest::get_bytes(&data.url).await {
@@ -40,19 +42,19 @@ pub async fn generate_media(
                             data: bytes,
                         };
 
-                        vec.push(file_properties);
+                        files_properties.push(file_properties);
                     }
-                    Err(e) => {
-                        // nothing to handle
+                    Err(_) => {
+                        // failed to get bytes
+                        // skip to next data
                     }
                 }
             }
 
             let sub_folder = Some(["media/", &claims.id].concat());
-            match backblaze::service::upload_files(vec, &sub_folder, b2).await {
+            match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
                 Ok(responses) => {
-                    let media =
-                        backblaze::service::create_media_from_responses(responses, claims, b2);
+                    let media = media::service::create_media_from_responses(responses, claims, b2);
 
                     if media.len() == 0 {
                         return Err(ApiError {
@@ -61,7 +63,10 @@ pub async fn generate_media(
                         });
                     }
 
-                    Ok(media)
+                    match media::service::upload_media(media, pool).await {
+                        Ok(m) => Ok(m),
+                        Err(e) => Err(e),
+                    }
                 }
                 Err(e) => Err(e),
             }

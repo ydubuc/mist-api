@@ -8,7 +8,7 @@ use crate::{
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
     auth::jwt::models::claims::Claims,
-    media::{self, models::media::Media},
+    media::{self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media},
 };
 
 use super::{
@@ -90,6 +90,30 @@ pub async fn create_post(
             }
         }
     }
+}
+
+pub async fn create_posts_with_media(
+    generate_media_dto: &GenerateMediaDto,
+    media: &Vec<Media>,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<Vec<Post>, ApiError> {
+    let mut posts = Vec::new();
+
+    for m in media {
+        let dto = CreatePostDto {
+            title: generate_media_dto.prompt.to_string(),
+            content: None,
+            media_id: Some(m.id.to_string()),
+        };
+
+        match create_post(&dto, claims, pool).await {
+            Ok(post) => posts.push(post),
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok(posts)
 }
 
 pub async fn get_posts(
