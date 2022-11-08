@@ -25,7 +25,7 @@ pub async fn generate_media(
 ) -> Result<Json<Vec<Media>>, ApiError> {
     match Claims::from_header(authorization) {
         Ok(claims) => match dto.validate() {
-            Ok(_) => match service::generate_media(&dto, &claims, &state.pool).await {
+            Ok(_) => match service::generate_media(&dto, &claims, &state.pool, &state.b2).await {
                 Ok(media) => Ok(Json(media)),
                 Err(e) => Err(e),
             },
@@ -93,7 +93,9 @@ pub async fn delete_media_by_id(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
     match Claims::from_header(authorization) {
-        Ok(claims) => return service::delete_media_by_id(&id, &claims, &state.pool).await,
+        Ok(claims) => {
+            return service::delete_media_by_id(&id, &claims, &state.pool, &state.b2).await
+        }
         Err(e) => Err(e),
     }
 }

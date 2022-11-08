@@ -31,6 +31,7 @@ CREATE TABLE posts(
 CREATE TABLE media(
     id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
+    file_id TEXT NOT NULL,
     url TEXT NOT NULL,
     width SMALLINT NOT NULL,
     height SMALLINT NOT NULL,

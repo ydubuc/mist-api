@@ -15,35 +15,38 @@ use super::{
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
-    models::{import_media_response::ImportMediaResponse, media::Media},
-    util::{self, dalle},
+    models::media::Media,
+    util::{backblaze, dalle},
 };
 
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
     pool: &PgPool,
+    b2: &B2,
 ) -> Result<Vec<Media>, ApiError> {
     match dto.generator.as_ref() {
-        MediaGenerator::DALLE => match dalle::service::generate_media(claims, dto).await {
-            Ok(media) => match upload_media(media, pool).await {
-                Ok(media) => {
-                    for m in &media {
-                        let dto = CreatePostDto {
-                            title: dto.prompt.to_string(),
-                            content: None,
-                            media_id: Some(m.id.to_string()),
-                        };
+        MediaGenerator::DALLE => {
+            match dalle::service::generate_media(dto, claims, pool, b2).await {
+                Ok(media) => match upload_media(media, pool).await {
+                    Ok(media) => {
+                        for m in &media {
+                            let dto = CreatePostDto {
+                                title: dto.prompt.to_string(),
+                                content: None,
+                                media_id: Some(m.id.to_string()),
+                            };
 
-                        let result = posts::service::create_post(&dto, claims, pool).await;
+                            let result = posts::service::create_post(&dto, claims, pool).await;
+                        }
+
+                        Ok(media)
                     }
-
-                    Ok(media)
-                }
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(e),
-        },
+            }
+        }
         _ => Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: "Media generator not supported".to_string(),
@@ -66,46 +69,40 @@ pub async fn import_media(
         });
     }
 
+    for f in &files_properties {
+        if f.mime_type.type_() != mime::IMAGE {
+            return Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Files must be of type image.".to_string(),
+            });
+        }
+    }
+
     let sub_folder = Some(["media/", &claims.id].concat());
 
-    match util::backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
+    match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
         Ok(responses) => {
-            let mut vec = Vec::new();
+            let media = backblaze::service::create_media_from_responses(responses, claims, b2);
 
-            for res in responses {
-                let download_url = [
-                    &b2.downloadUrl,
-                    "/b2api/v1/b2_download_file_by_id?fileId=",
-                    &res.1.file_id,
-                ]
-                .concat();
-
-                let import_media_res = ImportMediaResponse {
-                    id: res.0.to_string(),
-                    download_url,
-                    backblaze_upload_file_response: res.1,
-                };
-
-                vec.push(Media::from_import(&import_media_res, claims));
-            }
-
-            if vec.len() == 0 {
+            if media.len() == 0 {
                 return Err(ApiError {
                     code: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "Failed to upload files.".to_string(),
                 });
             }
 
-            return upload_media(vec, pool).await;
+            return upload_media(media, pool).await;
         }
         Err(e) => Err(e),
     }
 }
 
-async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+    let num_properties: u8 = 9;
+
     let mut sql = "
     INSERT INTO media (
-        id, user_id, url, width, height, mime_type, source, created_at
+        id, user_id, file_id, url, width, height, mime_type, source, created_at
     ) "
     .to_string();
 
@@ -117,11 +114,11 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
             sql.push_str(", (");
         }
 
-        for j in 0..8 {
+        for j in 0..num_properties {
             sql.push_str(&["$", &index.to_string()].concat());
             index += 1;
 
-            if j != 7 {
+            if j != num_properties - 1 {
                 sql.push_str(", ");
             }
         }
@@ -134,6 +131,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
     for m in &media {
         sqlx = sqlx.bind(&m.id);
         sqlx = sqlx.bind(&m.user_id);
+        sqlx = sqlx.bind(&m.file_id);
         sqlx = sqlx.bind(&m.url);
         sqlx = sqlx.bind(m.width.to_owned() as i16);
         sqlx = sqlx.bind(m.height.to_owned() as i16);
@@ -208,25 +206,41 @@ pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result
     }
 }
 
-pub async fn delete_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
-    let sqlx_result = sqlx::query(
-        "
-        DELETE FROM media WHERE id = $1 AND user_id = $2
-        ",
-    )
-    .bind(id)
-    .bind(&claims.id)
-    .execute(pool)
-    .await;
+pub async fn delete_media_by_id(
+    id: &str,
+    claims: &Claims,
+    pool: &PgPool,
+    b2: &B2,
+) -> Result<(), ApiError> {
+    match get_media_by_id(id, claims, pool).await {
+        Ok(media) => {
+            let file_name = ["media/", &claims.id, "/", id].concat();
+            match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
+                Ok(_) => {
+                    let sqlx_result = sqlx::query(
+                        "
+                        DELETE FROM media WHERE id = $1 AND user_id = $2
+                        ",
+                    )
+                    .bind(id)
+                    .bind(&claims.id)
+                    .execute(pool)
+                    .await;
 
-    match sqlx_result {
-        Ok(result) => match result.rows_affected() > 0 {
-            true => Ok(()),
-            false => Err(MediaApiError::MediaNotFound.value()),
-        },
-        Err(e) => {
-            tracing::error!(%e);
-            Err(DefaultApiError::InternalServerError.value())
+                    match sqlx_result {
+                        Ok(result) => match result.rows_affected() > 0 {
+                            true => Ok(()),
+                            false => Err(MediaApiError::MediaNotFound.value()),
+                        },
+                        Err(e) => {
+                            tracing::error!(%e);
+                            Err(DefaultApiError::InternalServerError.value())
+                        }
+                    }
+                }
+                Err(e) => Err(e),
+            }
         }
+        Err(e) => Err(e),
     }
 }

@@ -2,12 +2,17 @@ use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
 
-use crate::app::{
-    errors::DefaultApiError, models::api_error::ApiError,
-    util::multipart::models::file_properties::FileProperties,
+use crate::{
+    app::{
+        errors::DefaultApiError, models::api_error::ApiError,
+        util::multipart::models::file_properties::FileProperties,
+    },
+    auth::jwt::models::claims::Claims,
+    media::models::{import_media_response::ImportMediaResponse, media::Media},
 };
 
 use super::models::{
+    backblaze_delete_file_response::BackblazeDeleteFileResponse,
     backblaze_upload_file_response::BackblazeUploadFileResponse,
     backblaze_upload_url_response::BackblazeUploadUrlResponse,
 };
@@ -92,6 +97,33 @@ async fn upload_file(
     }
 }
 
+pub fn create_media_from_responses(
+    responses: Vec<(String, BackblazeUploadFileResponse)>,
+    claims: &Claims,
+    b2: &B2,
+) -> Vec<Media> {
+    let mut vec = Vec::new();
+
+    for res in responses {
+        let download_url = [
+            &b2.downloadUrl,
+            "/b2api/v1/b2_download_file_by_id?fileId=",
+            &res.1.file_id,
+        ]
+        .concat();
+
+        let import_media_res = ImportMediaResponse {
+            id: res.0.to_string(),
+            download_url,
+            backblaze_upload_file_response: res.1,
+        };
+
+        vec.push(Media::from_import(&import_media_res, claims));
+    }
+
+    return vec;
+}
+
 async fn get_upload_url(
     bucket_id: &str,
     b2: &B2,
@@ -130,6 +162,50 @@ async fn get_upload_url(
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn delete_file(
+    file_name: &str,
+    file_id: &str,
+    b2: &B2,
+) -> Result<BackblazeDeleteFileResponse, ApiError> {
+    let client = reqwest::Client::new();
+
+    let mut headers = header::HeaderMap::new();
+    headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
+
+    let result = client
+        .post([&b2.apiUrl, "/b2api/v2/b2_delete_file_version"].concat())
+        .headers(headers)
+        .body(
+            json!({
+                "fileName": file_name,
+                "fileId": file_id
+            })
+            .to_string(),
+        )
+        .send()
+        .await;
+
+    match result {
+        Ok(res) => match res.text().await {
+            Ok(text) => match serde_json::from_str(&text) {
+                Ok(delete_file_res) => Ok(delete_file_res),
+                Err(_) => {
+                    tracing::error!(%text);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
+            },
+            Err(e) => {
+                tracing::error!(%e);
+                Err(DefaultApiError::InternalServerError.value())
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            return Err(DefaultApiError::InternalServerError.value());
         }
     }
 }
