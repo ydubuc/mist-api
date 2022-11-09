@@ -1,42 +1,26 @@
 use axum::http::StatusCode;
 use serde::Deserialize;
-use validator::Validate;
 
 use crate::{
     app::{models::api_error::ApiError, util::time},
     auth::jwt::models::claims::Claims,
 };
 
-#[derive(Debug, Deserialize, Validate)]
-pub struct EditPostDto {
-    #[validate(length(
-        min = 1,
-        max = 512,
-        message = "title must be between 1 and 512 characters."
-    ))]
-    pub title: Option<String>,
-    #[validate(length(
-        min = 1,
-        max = 65535,
-        message = "content must be between 1 and 65535 characters."
-    ))]
-    pub content: Option<String>,
+#[derive(Debug, Deserialize)]
+pub struct EditDeviceDto {
+    pub messaging_token: Option<String>,
 }
 
-impl EditPostDto {
+impl EditDeviceDto {
     pub fn to_sql(&self, claims: &Claims) -> Result<String, ApiError> {
-        let mut sql = "UPDATE posts SET ".to_string();
+        let mut sql = "UPDATE devices SET ".to_string();
         let mut clauses = Vec::new();
 
         let mut index: u8 = 1;
 
         // SET CLAUSES
-        if self.title.is_some() {
-            clauses.push(["title = $", &index.to_string()].concat());
-            index += 1;
-        }
-        if self.content.is_some() {
-            clauses.push(["content = $", &index.to_string()].concat());
+        if self.messaging_token.is_some() {
+            clauses.push(["messaging_token = $", &index.to_string()].concat());
             index += 1;
         }
 

@@ -13,4 +13,6 @@ impl Env {
     pub const BACKBLAZE_KEY_ID: &str = "BACKBLAZE_KEY_ID";
     pub const BACKBLAZE_APP_KEY: &str = "BACKBLAZE_APP_KEY";
     pub const BACKBLAZE_BUCKET_ID: &str = "BACKBLAZE_BUCKET_ID";
+
+    pub const FCM_API_KEY: &str = "FCM_API_KEY";
 }

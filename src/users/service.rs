@@ -3,6 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     app::{
+        self,
         errors::DefaultApiError,
         models::api_error::ApiError,
         util::{
@@ -14,6 +15,7 @@ use crate::{
         dtos::{login_dto::LoginDto, register_dto::RegisterDto},
         jwt::models::claims::Claims,
     },
+    devices::{self, dtos::get_devices_filter_dto::GetDevicesFilterDto},
 };
 
 use super::{
@@ -261,5 +263,57 @@ pub async fn delete_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
         }
+    }
+}
+
+pub async fn send_notifications_to_user_id_as_admin(
+    title: &str,
+    body: &str,
+    id: &str,
+    pool: &PgPool,
+) {
+    let dto = GetDevicesFilterDto {
+        id: None,
+        user_id: id.to_string(),
+        sort: None,
+        cursor: None,
+        limit: None,
+    };
+
+    match devices::service::get_devices_as_admin(&dto, pool).await {
+        Ok(devices) => {
+            let mut futures = Vec::new();
+
+            for device in devices {
+                let Some(messaging_token) = device.messaging_token
+                else {
+                    continue;
+                };
+
+                futures.push(app::util::fcm::send_notification(
+                    messaging_token.to_string(),
+                    title.to_string(),
+                    body.to_string(),
+                ));
+            }
+
+            let results = futures::future::join_all(futures).await;
+            let mut failed_messaging_tokens = Vec::new();
+
+            for result in results {
+                if result.is_err() {
+                    failed_messaging_tokens.push(result.unwrap_err())
+                }
+            }
+
+            if failed_messaging_tokens.len() > 0 {
+                let _ = devices::service::delete_devices_with_messaging_tokens_as_admin(
+                    failed_messaging_tokens,
+                    pool,
+                )
+                .await;
+            }
+        }
+        Err(e) => {}
     }
 }

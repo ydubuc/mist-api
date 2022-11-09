@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
@@ -7,7 +5,10 @@ use crate::{
     app::{
         errors::DefaultApiError,
         models::api_error::ApiError,
-        util::sqlx::{get_code_from_db_err, SqlStateCodes},
+        util::{
+            sqlx::{get_code_from_db_err, SqlStateCodes},
+            time,
+        },
     },
     auth::jwt::models::claims::Claims,
     users::models::user::User,
@@ -15,8 +16,8 @@ use crate::{
 
 use super::{
     dtos::{
-        get_devices_filter_dto::GetDevicesFilterDto, logout_device_dto::LogoutDeviceDto,
-        refresh_device_dto::RefreshDeviceDto,
+        edit_device_dto::EditDeviceDto, get_devices_filter_dto::GetDevicesFilterDto,
+        logout_device_dto::LogoutDeviceDto, refresh_device_dto::RefreshDeviceDto,
     },
     errors::DevicesApiError,
     models::device::Device,
@@ -82,6 +83,13 @@ pub async fn get_devices(
         });
     }
 
+    return get_devices_as_admin(dto, pool).await;
+}
+
+pub async fn get_devices_as_admin(
+    dto: &GetDevicesFilterDto,
+    pool: &PgPool,
+) -> Result<Vec<Device>, ApiError> {
     let sql_result = dto.to_sql();
     let Ok(sql) = sql_result
     else {
@@ -114,12 +122,7 @@ pub async fn refresh_device_as_admin(
         WHERE id = $2 AND user_id = $3 AND refresh_token = $4
         ",
     )
-    .bind(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64,
-    )
+    .bind(time::current_time_in_secs() as i64)
     .bind(&dto.device_id)
     .bind(&dto.user_id)
     .bind(&dto.refresh_token)
@@ -133,6 +136,39 @@ pub async fn refresh_device_as_admin(
                 code: StatusCode::NOT_FOUND,
                 message: "Failed to refresh.".to_string(),
             }),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn edit_device_by_id(
+    id: &str,
+    dto: &EditDeviceDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<Device, ApiError> {
+    println!("{:?}", dto);
+
+    let sql_result = dto.to_sql(claims);
+    let Ok(sql) = sql_result
+    else {
+        return Err(sql_result.err().unwrap());
+    };
+
+    let mut sqlx = sqlx::query_as::<_, Device>(&sql);
+
+    if let Some(messaging_token) = &dto.messaging_token {
+        sqlx = sqlx.bind(messaging_token);
+    }
+    sqlx = sqlx.bind(id);
+
+    match sqlx.fetch_optional(pool).await {
+        Ok(device) => match device {
+            Some(device) => Ok(device),
+            None => Err(DevicesApiError::DeviceNotFound.value()),
         },
         Err(e) => {
             tracing::error!(%e);
@@ -159,6 +195,35 @@ pub async fn logout_device_as_admin(dto: &LogoutDeviceDto, pool: &PgPool) -> Res
             true => Ok(()),
             false => Err(DevicesApiError::DeviceNotFound.value()),
         },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn delete_devices_with_messaging_tokens_as_admin(
+    messaging_tokens: Vec<String>,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let mut sql = "DELETE FROM devices WHERE messaging_token IN (".to_string();
+
+    for i in 0..messaging_tokens.len() {
+        if i != messaging_tokens.len() - 1 {
+            sql.push_str(&[&messaging_tokens[i], ", "].concat());
+        } else {
+            sql.push_str(&messaging_tokens[i]);
+        }
+    }
+
+    sql.push_str(")");
+
+    println!("{}", sql);
+
+    let sqlx = sqlx::query(&sql);
+
+    match sqlx.execute(pool).await {
+        Ok(_) => Ok(()),
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())

@@ -13,7 +13,7 @@ use crate::{
         },
     },
     auth::jwt::models::claims::Claims,
-    posts,
+    posts, users,
 };
 
 use super::{
@@ -37,6 +37,14 @@ pub async fn generate_media(
         MediaGenerator::DALLE => {
             match dalle::service::generate_media(dto, claims, pool, b2).await {
                 Ok(media) => {
+                    users::service::send_notifications_to_user_id_as_admin(
+                        "Mist",
+                        "Your images are ready!",
+                        &claims.id,
+                        pool,
+                    )
+                    .await;
+
                     match posts::service::create_post_with_media(dto, &media, claims, pool).await {
                         Ok(_) => Ok(media),
                         Err(e) => Err(e),
@@ -47,7 +55,7 @@ pub async fn generate_media(
         }
         _ => Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: "Media generator not supported".to_string(),
+            message: "Media generator not supported.".to_string(),
         }),
     }
 }

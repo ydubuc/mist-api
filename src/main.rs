@@ -76,6 +76,11 @@ async fn main() {
         .route("/auth/refresh", post(auth::controller::refresh))
         .route("/auth/devices", get(auth::controller::get_devices))
         .route("/auth/logout", post(auth::controller::logout))
+        // devices
+        .route(
+            "/devices/:id",
+            patch(devices::controller::edit_device_by_id),
+        )
         // users
         .route("/users", get(users::controller::get_users))
         .route("/users/me", get(users::controller::get_user_from_request))
