@@ -12,6 +12,10 @@ use crate::{
         util::multipart::models::file_properties::FileProperties,
     },
     auth::jwt::models::claims::Claims,
+    generate_media_requests::{
+        enums::generate_media_request_status::GenerateMediaRequestStatus,
+        models::generate_media_request::GenerateMediaRequest,
+    },
     media::{
         self, dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
         models::media::Media, util::backblaze,
@@ -21,7 +25,46 @@ use reqwest::{header, StatusCode};
 
 use super::models::dalle_generate_image_response::DalleGenerateImageResponse;
 
-pub async fn generate_media(
+pub fn spawn_generate_media_task(
+    generate_media_request: GenerateMediaRequest,
+    claims: Claims,
+    pool: PgPool,
+    b2: B2,
+) {
+    tokio::spawn(async move {
+        let status: GenerateMediaRequestStatus;
+        let media: Option<Vec<Media>>;
+
+        match generate_media(
+            &generate_media_request.generate_media_dto,
+            &claims,
+            &pool,
+            &b2,
+        )
+        .await
+        {
+            Ok(m) => {
+                status = GenerateMediaRequestStatus::Completed;
+                media = Some(m);
+            }
+            Err(e) => {
+                status = GenerateMediaRequestStatus::Error;
+                media = None;
+            }
+        }
+
+        media::service::on_generate_media_completion(
+            &generate_media_request,
+            &status,
+            &media,
+            &claims,
+            &pool,
+        )
+        .await
+    });
+}
+
+async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
     pool: &PgPool,
@@ -122,7 +165,8 @@ async fn dalle_generate_image(
             json!({
                 "prompt": dto.prompt,
                 "n": dto.number,
-                "size": size
+                "size": size,
+                "response_format": "url"
             })
             .to_string(),
         )

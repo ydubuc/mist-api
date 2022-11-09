@@ -16,6 +16,7 @@ use crate::{
         jwt::models::claims::Claims,
     },
     devices::{self, dtos::get_devices_filter_dto::GetDevicesFilterDto},
+    media,
 };
 
 use super::{
@@ -211,6 +212,23 @@ pub async fn edit_user_by_id(
         return Err(UsersApiError::PermissionDenied.value());
     }
 
+    let avatar_url: Option<String>;
+
+    if let Some(avatar_media_id) = &dto.avatar_media_id {
+        match media::service::get_media_by_id(avatar_media_id, claims, pool).await {
+            Ok(media) => {
+                if media.user_id != claims.id {
+                    return Err(UsersApiError::PermissionDenied.value());
+                }
+
+                avatar_url = Some(media.url)
+            }
+            Err(e) => return Err(e),
+        }
+    } else {
+        avatar_url = None;
+    }
+
     let sql_result = dto.to_sql();
     let Ok(sql) = sql_result
     else {
@@ -225,6 +243,9 @@ pub async fn edit_user_by_id(
     }
     if let Some(displayname) = &dto.displayname {
         sqlx = sqlx.bind(displayname);
+    }
+    if let Some(avatar_url) = &avatar_url {
+        sqlx = sqlx.bind(avatar_url);
     }
     sqlx = sqlx.bind(id);
 
@@ -263,57 +284,5 @@ pub async fn delete_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
         }
-    }
-}
-
-pub async fn send_notifications_to_user_id_as_admin(
-    title: &str,
-    body: &str,
-    id: &str,
-    pool: &PgPool,
-) {
-    let dto = GetDevicesFilterDto {
-        id: None,
-        user_id: id.to_string(),
-        sort: None,
-        cursor: None,
-        limit: None,
-    };
-
-    match devices::service::get_devices_as_admin(&dto, pool).await {
-        Ok(devices) => {
-            let mut futures = Vec::new();
-
-            for device in devices {
-                let Some(messaging_token) = device.messaging_token
-                else {
-                    continue;
-                };
-
-                futures.push(app::util::fcm::send_notification(
-                    messaging_token.to_string(),
-                    title.to_string(),
-                    body.to_string(),
-                ));
-            }
-
-            let results = futures::future::join_all(futures).await;
-            let mut failed_messaging_tokens = Vec::new();
-
-            for result in results {
-                if result.is_err() {
-                    failed_messaging_tokens.push(result.unwrap_err())
-                }
-            }
-
-            if failed_messaging_tokens.len() > 0 {
-                let _ = devices::service::delete_devices_with_messaging_tokens_as_admin(
-                    failed_messaging_tokens,
-                    pool,
-                )
-                .await;
-            }
-        }
-        Err(e) => {}
     }
 }

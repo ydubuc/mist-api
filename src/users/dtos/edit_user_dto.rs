@@ -20,6 +20,8 @@ pub struct EditUserDto {
         message = "displayname must be between 3 and 24 characters."
     ))]
     pub displayname: Option<String>,
+    #[validate(length(equal = 36, message = "avatar_media_id must be 36 characters."))]
+    pub avatar_media_id: Option<String>,
 }
 
 impl EditUserDto {
@@ -39,6 +41,10 @@ impl EditUserDto {
         }
         if self.displayname.is_some() {
             clauses.push(["displayname = $", &index.to_string()].concat());
+            index += 1;
+        }
+        if self.avatar_media_id.is_some() {
+            clauses.push(["avatar_url = $", &index.to_string()].concat());
             index += 1;
         }
 

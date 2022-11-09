@@ -69,7 +69,7 @@ pub async fn create_generate_media_request(
 
 pub async fn edit_generate_media_request_by_id(
     id: &str,
-    status: GenerateMediaRequestStatus,
+    status: &GenerateMediaRequestStatus,
     pool: &PgPool,
 ) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(

@@ -3,6 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     app::{
+        self,
         errors::DefaultApiError,
         models::api_error::ApiError,
         util::{
@@ -68,6 +69,56 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
                 }
             }
         }
+    }
+}
+
+pub async fn send_notifications_to_devices_with_user_id(
+    title: &str,
+    body: &str,
+    id: &str,
+    pool: &PgPool,
+) {
+    let dto = GetDevicesFilterDto {
+        id: None,
+        user_id: id.to_string(),
+        sort: None,
+        cursor: None,
+        limit: None,
+    };
+
+    match get_devices_as_admin(&dto, pool).await {
+        Ok(devices) => {
+            let mut futures = Vec::new();
+
+            for device in devices {
+                let Some(messaging_token) = device.messaging_token
+                else {
+                    continue;
+                };
+
+                futures.push(app::util::fcm::send_notification(
+                    messaging_token.to_string(),
+                    title.to_string(),
+                    body.to_string(),
+                ));
+            }
+
+            let results = futures::future::join_all(futures).await;
+            let mut failed_messaging_tokens = Vec::new();
+
+            for result in results {
+                if result.is_err() {
+                    failed_messaging_tokens.push(result.unwrap_err())
+                }
+            }
+
+            if failed_messaging_tokens.len() > 0 {
+                let _ =
+                    delete_devices_with_messaging_tokens_as_admin(failed_messaging_tokens, pool)
+                        .await;
+            }
+        }
+        Err(e) => {}
     }
 }
 
@@ -150,8 +201,6 @@ pub async fn edit_device_by_id(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<Device, ApiError> {
-    println!("{:?}", dto);
-
     let sql_result = dto.to_sql(claims);
     let Ok(sql) = sql_result
     else {
@@ -217,8 +266,6 @@ pub async fn delete_devices_with_messaging_tokens_as_admin(
     }
 
     sql.push_str(")");
-
-    println!("{}", sql);
 
     let sqlx = sqlx::query(&sql);
 

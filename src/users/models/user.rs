@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Type};
+use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{app::util::time, auth::dtos::register_dto::RegisterDto};
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Type)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
@@ -15,6 +15,8 @@ pub struct User {
     pub email: String,
     #[serde(skip_serializing)]
     pub email_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: String,
     pub updated_at: i64,
@@ -32,6 +34,7 @@ impl User {
             displayname: dto.username.to_string(),
             email: dto.email.to_string(),
             email_key: dto.email.to_lowercase(),
+            avatar_url: None,
             password_hash: hash,
             updated_at: current_time as i64,
             created_at: current_time as i64,
