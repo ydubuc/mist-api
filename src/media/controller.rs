@@ -9,6 +9,7 @@ use validator::Validate;
 use crate::{
     app::models::{api_error::ApiError, json_from_request::JsonFromRequest},
     auth::jwt::models::claims::Claims,
+    generate_media_requests::models::generate_media_request::GenerateMediaRequest,
     AppState,
 };
 
@@ -22,11 +23,11 @@ pub async fn generate_media(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<GenerateMediaDto>,
-) -> Result<Json<Vec<Media>>, ApiError> {
+) -> Result<Json<GenerateMediaRequest>, ApiError> {
     match Claims::from_header(authorization) {
         Ok(claims) => match dto.validate() {
             Ok(_) => match service::generate_media(&dto, &claims, &state.pool, &state.b2).await {
-                Ok(media) => Ok(Json(media)),
+                Ok(generate_media_request) => Ok(Json(generate_media_request)),
                 Err(e) => Err(e),
             },
             Err(e) => Err(ApiError {

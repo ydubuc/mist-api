@@ -13,6 +13,10 @@ use crate::{
         },
     },
     auth::jwt::models::claims::Claims,
+    generate_media_requests::{
+        self, enums::generate_media_request_status::GenerateMediaRequestStatus,
+        models::generate_media_request::GenerateMediaRequest,
+    },
     posts, users,
 };
 
@@ -32,23 +36,54 @@ pub async fn generate_media(
     claims: &Claims,
     pool: &PgPool,
     b2: &B2,
-) -> Result<Vec<Media>, ApiError> {
+) -> Result<GenerateMediaRequest, ApiError> {
     match dto.generator.as_ref() {
         MediaGenerator::DALLE => {
-            match dalle::service::generate_media(dto, claims, pool, b2).await {
-                Ok(media) => {
-                    users::service::send_notifications_to_user_id_as_admin(
-                        "Mist",
-                        "Your images are ready!",
-                        &claims.id,
-                        pool,
-                    )
-                    .await;
+            match generate_media_requests::service::create_generate_media_request(dto, claims, pool)
+                .await
+            {
+                Ok(generate_media_request) => {
+                    let _generate_media_request = generate_media_request.clone();
+                    let _claims = claims.clone();
+                    let _pool = pool.clone();
+                    let _b2 = b2.clone();
 
-                    match posts::service::create_post_with_media(dto, &media, claims, pool).await {
-                        Ok(_) => Ok(media),
-                        Err(e) => Err(e),
-                    }
+                    tokio::spawn(async move {
+                        println!("dalle generate media");
+                        match dalle::service::generate_media(
+                            &_generate_media_request.generate_media_dto,
+                            &_claims,
+                            &_pool,
+                            &_b2,
+                        )
+                        .await
+                        {
+                            Ok(media) => {
+                                on_generate_media_completion(
+                                    &_generate_media_request,
+                                    &media,
+                                    &_claims,
+                                    &_pool,
+                                )
+                                .await
+                            }
+                            Err(e) => {
+                                let status = GenerateMediaRequestStatus::Error;
+
+                                match generate_media_requests::service::edit_generate_media_request_by_id(
+                                    &_generate_media_request.id,
+                                    status,
+                                    &_pool
+                                ).await {
+                                    Ok(_) => Err(e),
+                                    Err(_) => Err(e),
+                                }
+                            }
+                        }
+                    });
+
+                    println!("returning generate_media_request");
+                    Ok(generate_media_request)
                 }
                 Err(e) => Err(e),
             }
@@ -57,6 +92,47 @@ pub async fn generate_media(
             code: StatusCode::BAD_REQUEST,
             message: "Media generator not supported.".to_string(),
         }),
+    }
+}
+
+async fn on_generate_media_completion(
+    generate_media_request: &GenerateMediaRequest,
+    media: &Vec<Media>,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    println!("on generate media");
+    let status = GenerateMediaRequestStatus::Completed;
+
+    match generate_media_requests::service::edit_generate_media_request_by_id(
+        &generate_media_request.id,
+        status,
+        &pool,
+    )
+    .await
+    {
+        Ok(_) => {
+            users::service::send_notifications_to_user_id_as_admin(
+                "Mist",
+                "Your images are ready!",
+                &claims.id,
+                &pool,
+            )
+            .await;
+
+            match posts::service::create_post_with_media(
+                &generate_media_request.generate_media_dto,
+                &media,
+                &claims,
+                &pool,
+            )
+            .await
+            {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
     }
 }
 

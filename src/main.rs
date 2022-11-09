@@ -16,6 +16,7 @@ use crate::app::env::Env;
 mod app;
 mod auth;
 mod devices;
+mod generate_media_requests;
 mod media;
 mod posts;
 mod users;

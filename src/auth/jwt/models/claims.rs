@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{app::models::api_error::ApiError, auth::jwt::util::decode_jwt};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub id: String,
     pub iat: u64,

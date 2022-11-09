@@ -1,4 +1,4 @@
-use crate::app::{env::Env, models::app_error::AppError};
+use crate::app::env::Env;
 
 pub async fn send_notification(
     messaging_token: String,

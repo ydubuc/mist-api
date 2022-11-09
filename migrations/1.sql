@@ -40,3 +40,10 @@ CREATE TABLE media(
     source VARCHAR(255) NOT NULL,
     created_at BIGINT NOT NULL
 );
+
+CREATE TABLE generate_media_requests(
+    id VARCHAR(255) PRIMARY KEY,
+    status VARCHAR(255) NOT NULL,
+    generate_media_dto JSONB NOT NULL,
+    created_at BIGINT NOT NULL
+);
