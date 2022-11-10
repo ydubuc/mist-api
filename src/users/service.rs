@@ -295,7 +295,7 @@ pub async fn approve_user_email_pending_by_id_as_admin(
         "
         UPDATE users
         SET email = email_pending, email_key = LOWER(email_pending), email_pending = NULL
-        WHERE id = $1
+        WHERE id = $1 AND email_pending IS NOT NULL
         ",
     )
     .bind(id)
