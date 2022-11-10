@@ -1,6 +1,4 @@
-use b2_backblaze::B2;
 use serde_json::json;
-use sqlx::PgPool;
 use tracing::Level;
 use uuid::Uuid;
 
@@ -8,7 +6,7 @@ extern crate reqwest;
 
 use crate::{
     app::{
-        self, env::Env, errors::DefaultApiError, models::api_error::ApiError,
+        self, errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
     auth::jwt::models::claims::Claims,
@@ -20,6 +18,7 @@ use crate::{
         self, dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
         models::media::Media, util::backblaze,
     },
+    AppState,
 };
 use reqwest::{header, StatusCode};
 
@@ -28,21 +27,13 @@ use super::models::dalle_generate_image_response::DalleGenerateImageResponse;
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
     claims: Claims,
-    pool: PgPool,
-    b2: B2,
+    state: AppState,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(
-            &generate_media_request.generate_media_dto,
-            &claims,
-            &pool,
-            &b2,
-        )
-        .await
-        {
+        match generate_media(&generate_media_request.generate_media_dto, &claims, &state).await {
             Ok(m) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
@@ -58,7 +49,7 @@ pub fn spawn_generate_media_task(
             &status,
             &media,
             &claims,
-            &pool,
+            &state,
         )
         .await
     });
@@ -67,10 +58,9 @@ pub fn spawn_generate_media_task(
 async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    pool: &PgPool,
-    b2: &B2,
+    state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
-    match dalle_generate_image(dto).await {
+    match dalle_generate_image(dto, &state.envy.openai_api_key).await {
         Ok(dalle_response) => {
             let mut files_properties = Vec::new();
 
@@ -96,13 +86,13 @@ async fn generate_media(
             }
 
             let sub_folder = Some(["media/", &claims.id].concat());
-            match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
+            match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
                 Ok(responses) => {
                     let media = media::service::create_media_from_responses(
                         responses,
                         MediaSource::Dalle,
                         claims,
-                        b2,
+                        &state.b2,
                     );
 
                     if media.len() == 0 {
@@ -112,7 +102,7 @@ async fn generate_media(
                         });
                     }
 
-                    match media::service::upload_media(media, pool).await {
+                    match media::service::upload_media(media, &state.pool).await {
                         Ok(m) => Ok(m),
                         Err(e) => Err(e),
                     }
@@ -126,6 +116,7 @@ async fn generate_media(
 
 async fn dalle_generate_image(
     dto: &GenerateMediaDto,
+    openai_api_key: &str,
 ) -> Result<DalleGenerateImageResponse, ApiError> {
     let size = [
         dto.width.to_string(),
@@ -147,14 +138,11 @@ async fn dalle_generate_image(
         });
     }
 
-    let openai_api_key =
-        std::env::var(Env::OPENAI_API_KEY).expect("environment: OPENAPI_API_KEY missing");
-
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert(
         "Authorization",
-        ["Bearer ", &openai_api_key].concat().parse().unwrap(),
+        ["Bearer ", openai_api_key].concat().parse().unwrap(),
     );
 
     let client = reqwest::Client::new();

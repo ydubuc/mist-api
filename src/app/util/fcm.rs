@@ -1,11 +1,9 @@
-use crate::app::env::Env;
-
 pub async fn send_notification(
     messaging_token: String,
     title: String,
     body: String,
+    fcm_api_key: String,
 ) -> Result<(), String> {
-    let api_key = std::env::var(Env::FCM_API_KEY).unwrap();
     let client = fcm::Client::new();
 
     let mut builder = fcm::NotificationBuilder::new();
@@ -14,7 +12,7 @@ pub async fn send_notification(
 
     let notification = builder.finalize();
 
-    let mut message_builder = fcm::MessageBuilder::new(&api_key, &messaging_token);
+    let mut message_builder = fcm::MessageBuilder::new(&fcm_api_key, &messaging_token);
     message_builder.notification(notification);
 
     match client.send(message_builder.finalize()).await {
@@ -25,7 +23,7 @@ pub async fn send_notification(
             match e {
                 fcm::Error::Unauthorized => Ok(()),
                 fcm::Error::InvalidMessage(_) => Ok(()),
-                fcm::Error::ServerError(_) => Err(messaging_token),
+                fcm::Error::ServerError(_) => Err(messaging_token.to_string()),
             }
         }
     }

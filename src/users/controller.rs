@@ -23,17 +23,20 @@ pub async fn get_users(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetUsersFilterDto>,
 ) -> Result<Json<Vec<User>>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::get_users(&dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::get_users(&dto, &claims, &state.pool).await {
                 Ok(users) => Ok(Json(users)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -42,7 +45,7 @@ pub async fn get_user_from_request(
     State(state): State<AppState>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<User>, ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => match service::get_user_by_id(&claims.id, &claims, &state.pool).await {
             Ok(user) => Ok(Json(user)),
             Err(e) => Err(e),
@@ -56,7 +59,7 @@ pub async fn get_user_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<User>, ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => match service::get_user_by_id(&id, &claims, &state.pool).await {
             Ok(user) => Ok(Json(user)),
             Err(e) => Err(e),
@@ -71,17 +74,20 @@ pub async fn edit_user_by_id(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditUserDto>,
 ) -> Result<Json<User>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::edit_user_by_id(&id, &dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::edit_user_by_id(&id, &dto, &claims, &state.pool).await {
                 Ok(user) => Ok(Json(user)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -91,7 +97,7 @@ pub async fn delete_user_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => return service::delete_user_by_id(&id, &claims, &state.pool).await,
         Err(e) => Err(e),
     }

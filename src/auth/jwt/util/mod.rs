@@ -1,23 +1,14 @@
-use std::{
-    env,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use jsonwebtoken::{
     decode, encode, errors::ErrorKind, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
 
-use crate::{app::env::Env, auth::jwt::models::claims::Claims};
+use crate::{app::util::time, auth::jwt::models::claims::Claims};
 
 use super::config::JWT_EXP;
 
-// FIXME: unsafe unwraps
-
-pub fn sign_jwt(id: &str, pepper: Option<&str>) -> String {
-    let iat = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+pub fn sign_jwt(id: &str, secret: &str, pepper: Option<&str>) -> String {
+    let mut secret = secret.to_string();
+    let iat = time::current_time_in_secs();
     let exp = iat + JWT_EXP;
 
     let claims = Claims {
@@ -25,11 +16,11 @@ pub fn sign_jwt(id: &str, pepper: Option<&str>) -> String {
         iat,
         exp,
     };
-    let mut secret = env::var(Env::JWT_SECRET).unwrap();
     if let Some(pepper) = pepper {
-        secret = secret + pepper
+        secret = [&secret, pepper].concat();
     }
 
+    // FIXME: unsafe unwrap
     encode(
         &Header::default(),
         &claims,
@@ -38,15 +29,16 @@ pub fn sign_jwt(id: &str, pepper: Option<&str>) -> String {
     .unwrap()
 }
 
-pub fn decode_jwt(jwt: String, pepper: Option<&str>) -> Result<Claims, ErrorKind> {
-    let mut secret = env::var(Env::JWT_SECRET).unwrap();
+pub fn decode_jwt(jwt: String, secret: &str, pepper: Option<&str>) -> Result<Claims, ErrorKind> {
+    let mut secret = secret.to_string();
+
     if let Some(pepper) = pepper {
-        secret = secret + pepper;
+        secret = [&secret, pepper].concat();
     }
 
     let result = decode::<Claims>(
         &jwt,
-        &DecodingKey::from_secret(&secret.as_ref()),
+        &DecodingKey::from_secret(secret.as_ref()),
         &Validation::new(Algorithm::HS256),
     );
 

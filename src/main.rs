@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::net::SocketAddr;
+use std::{env, net::SocketAddr};
 
 use axum::{
     routing::{delete, get, patch, post},
@@ -11,7 +11,7 @@ use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::app::env::Env;
+use crate::app::env::Envy;
 
 mod app;
 mod auth;
@@ -26,6 +26,7 @@ mod users;
 pub struct AppState {
     pub pool: PgPool,
     pub b2: B2,
+    pub envy: Envy,
 }
 
 #[tokio::main]
@@ -34,43 +35,39 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     // environment
-    if let Err(e) = dotenvy::from_filename(".env.development") {
+    let app_env = env::var("APP_ENV").unwrap_or("development".to_string());
+    if let Err(e) = dotenvy::from_filename(format!(".env.{}", app_env)) {
         tracing::error!(%e);
     }
 
-    let port: u16 = match std::env::var(Env::PORT) {
-        Ok(port) => port.parse().expect("env: PORT is not a number"),
-        Err(_) => 3000,
+    let envy = match envy::from_env::<Envy>() {
+        Ok(config) => config,
+        Err(e) => panic!("{:#?}", e),
     };
-    let db_url = std::env::var(Env::DATABASE_URL).expect("env: DATABASE_URL missing");
-    let b2_id = std::env::var(Env::BACKBLAZE_KEY_ID).expect("env: BACKBLAZE_KEY_ID missing");
-    let b2_key = std::env::var(Env::BACKBLAZE_APP_KEY).expect("env: BACKBLAZE_KEY_ID missing");
-    let b2_bucket_id =
-        std::env::var(Env::BACKBLAZE_BUCKET_ID).expect("env: BACKBLAZE_BUCKET_ID missing");
-    let mail_host = std::env::var(Env::MAIL_HOST).expect("env: MAIL_HOST missing");
-    let mail_user = std::env::var(Env::MAIL_USER).expect("env: MAIL_USER missing");
-    let mail_pass = std::env::var(Env::MAIL_PASS).expect("env: MAIL_PASS missing");
-
-    println!("loaded env");
 
     // properties
+    let port = envy.port.to_owned();
     let cors = CorsLayer::new().allow_origin(Any);
 
+    let database_url = envy.database_url.to_string();
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&db_url)
+        .connect(&database_url)
         .await
         .expect("failed to connect to database");
 
     println!("connected to db");
 
-    let mut b2 = B2::new(Config::new(b2_id, b2_key));
-    b2.set_bucket_id(b2_bucket_id);
-    b2.login().await.expect("");
+    let backblaze_key_id = envy.backblaze_key_id.to_string();
+    let backblaze_app_key = envy.backblaze_app_key.to_string();
+    let backblaze_bucket_id = envy.backblaze_bucket_id.to_string();
+    let mut b2 = B2::new(Config::new(backblaze_key_id, backblaze_app_key));
+    b2.set_bucket_id(backblaze_bucket_id);
+    b2.login().await.expect("failed to login to backblaze");
 
     println!("logged in to backblaze");
 
-    let state = AppState { pool, b2 };
+    let state = AppState { pool, b2, envy };
 
     // app
     let app = Router::with_state(state)
@@ -128,7 +125,7 @@ async fn main() {
         // layers
         .layer(cors);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port.unwrap_or(3000)));
     println!("listening on {}", addr);
 
     axum::Server::bind(&addr)

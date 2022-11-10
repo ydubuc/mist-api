@@ -15,8 +15,11 @@ pub struct Claims {
 }
 
 impl Claims {
-    pub fn from_header(authorization: Authorization<Bearer>) -> Result<Self, ApiError> {
-        match decode_jwt(authorization.0.token().to_string(), None) {
+    pub fn from_header(
+        authorization: Authorization<Bearer>,
+        secret: &str,
+    ) -> Result<Self, ApiError> {
+        match decode_jwt(authorization.0.token().to_string(), secret, None) {
             Ok(claims) => return Ok(claims),
             Err(e) => match e {
                 ErrorKind::ExpiredSignature => {

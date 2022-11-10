@@ -1,4 +1,3 @@
-pub mod edit_email_dto;
 pub mod edit_password_dto;
 pub mod login_dto;
 pub mod register_dto;

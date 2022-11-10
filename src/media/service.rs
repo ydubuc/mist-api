@@ -18,7 +18,7 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts, users,
+    posts, AppState,
 };
 
 use super::{
@@ -35,20 +35,22 @@ use super::{
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    pool: &PgPool,
-    b2: &B2,
+    state: &AppState,
 ) -> Result<GenerateMediaRequest, ApiError> {
     match dto.generator.as_ref() {
         MediaGenerator::DALLE => {
-            match generate_media_requests::service::create_generate_media_request(dto, claims, pool)
-                .await
+            match generate_media_requests::service::create_generate_media_request(
+                dto,
+                claims,
+                &state.pool,
+            )
+            .await
             {
                 Ok(generate_media_request) => {
                     dalle::service::spawn_generate_media_task(
                         generate_media_request.clone(),
                         claims.clone(),
-                        pool.clone(),
-                        b2.clone(),
+                        state.clone(),
                     );
 
                     Ok(generate_media_request)
@@ -68,12 +70,12 @@ pub async fn on_generate_media_completion(
     status: &GenerateMediaRequestStatus,
     media: &Option<Vec<Media>>,
     claims: &Claims,
-    pool: &PgPool,
+    state: &AppState,
 ) -> Result<(), ApiError> {
     if let Err(e) = generate_media_requests::service::edit_generate_media_request_by_id(
         &generate_media_request.id,
         status,
-        pool,
+        &state.pool,
     )
     .await
     {
@@ -90,7 +92,7 @@ pub async fn on_generate_media_completion(
         "Mist",
         "Your images are ready!",
         &claims.id,
-        &pool,
+        state,
     )
     .await;
 
@@ -98,7 +100,7 @@ pub async fn on_generate_media_completion(
         &generate_media_request.generate_media_dto,
         &media,
         &claims,
-        &pool,
+        &state.pool,
     )
     .await
     {
@@ -110,8 +112,7 @@ pub async fn on_generate_media_completion(
 pub async fn import_media(
     multipart: Multipart,
     claims: &Claims,
-    pool: &PgPool,
-    b2: &B2,
+    state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
     let files_properties = get_files_properties(multipart).await;
 
@@ -143,9 +144,10 @@ pub async fn import_media(
 
     let sub_folder = Some(["media/", &claims.id].concat());
 
-    match backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
+    match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            let media = create_media_from_responses(responses, MediaSource::Import, claims, b2);
+            let media =
+                create_media_from_responses(responses, MediaSource::Import, claims, &state.b2);
 
             if media.len() == 0 {
                 return Err(ApiError {
@@ -154,7 +156,7 @@ pub async fn import_media(
                 });
             }
 
-            return upload_media(media, pool).await;
+            return upload_media(media, &state.pool).await;
         }
         Err(e) => Err(e),
     }

@@ -18,7 +18,7 @@ pub async fn edit_device_by_id(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditDeviceDto>,
 ) -> Result<Json<Device>, ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => match service::edit_device_by_id(&id, &dto, &claims, &state.pool).await {
             Ok(device) => Ok(Json(device)),
             Err(e) => Err(e),

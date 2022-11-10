@@ -26,17 +26,20 @@ pub async fn create_post(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<CreatePostDto>,
 ) -> Result<Json<Post>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::create_post(&dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::create_post(&dto, &claims, &state.pool).await {
                 Ok(post) => Ok(Json(post)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -46,17 +49,20 @@ pub async fn get_posts(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetPostsFilterDto>,
 ) -> Result<Json<Vec<Post>>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::get_posts(&dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::get_posts(&dto, &claims, &state.pool).await {
                 Ok(posts) => Ok(Json(posts)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -66,7 +72,7 @@ pub async fn get_post_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Post>, ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => match service::get_post_by_id(&id, &claims, &state.pool).await {
             Ok(post) => Ok(Json(post)),
             Err(e) => Err(e),
@@ -81,17 +87,20 @@ pub async fn edit_post_by_id(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditPostDto>,
 ) -> Result<Json<Post>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::edit_post_by_id(&id, &dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::edit_post_by_id(&id, &dto, &claims, &state.pool).await {
                 Ok(post) => Ok(Json(post)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -101,7 +110,7 @@ pub async fn delete_post_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => return service::delete_post_by_id(&id, &claims, &state.pool).await,
         Err(e) => Err(e),
     }

@@ -13,6 +13,7 @@ use crate::{
     },
     auth::jwt::models::claims::Claims,
     users::models::user::User,
+    AppState,
 };
 
 use super::{
@@ -76,7 +77,7 @@ pub async fn send_notifications_to_devices_with_user_id(
     title: &str,
     body: &str,
     id: &str,
-    pool: &PgPool,
+    state: &AppState,
 ) {
     let dto = GetDevicesFilterDto {
         id: None,
@@ -86,7 +87,7 @@ pub async fn send_notifications_to_devices_with_user_id(
         limit: None,
     };
 
-    match get_devices_as_admin(&dto, pool).await {
+    match get_devices_as_admin(&dto, &state.pool).await {
         Ok(devices) => {
             let mut futures = Vec::new();
 
@@ -100,6 +101,7 @@ pub async fn send_notifications_to_devices_with_user_id(
                     messaging_token.to_string(),
                     title.to_string(),
                     body.to_string(),
+                    state.envy.fcm_api_key.to_string(),
                 ));
             }
 
@@ -113,9 +115,11 @@ pub async fn send_notifications_to_devices_with_user_id(
             }
 
             if failed_messaging_tokens.len() > 0 {
-                let _ =
-                    delete_devices_with_messaging_tokens_as_admin(failed_messaging_tokens, pool)
-                        .await;
+                let _ = delete_devices_with_messaging_tokens_as_admin(
+                    failed_messaging_tokens,
+                    &state.pool,
+                )
+                .await;
             }
         }
         Err(e) => {}

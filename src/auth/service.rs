@@ -19,13 +19,13 @@ use crate::{
             request_password_update_template::request_password_update_template,
         },
     },
-    users,
+    users, AppState,
 };
 
 use super::{
     dtos::{
-        edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
-        register_dto::RegisterDto, request_email_update_dto::RequestEmailUpdateDto,
+        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
     jwt::{
@@ -36,8 +36,8 @@ use super::{
     models::access_info::AccessInfo,
 };
 
-pub async fn register(dto: &RegisterDto, pool: &PgPool) -> Result<AccessInfo, ApiError> {
-    match users::service::create_user_as_admin(dto, pool).await {
+pub async fn register(dto: &RegisterDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+    match users::service::create_user_as_admin(dto, &state.pool).await {
         Ok(_) => {
             let login_dto = LoginDto {
                 username: None,
@@ -45,14 +45,14 @@ pub async fn register(dto: &RegisterDto, pool: &PgPool) -> Result<AccessInfo, Ap
                 password: dto.password.to_string(),
             };
 
-            return login(&login_dto, &pool).await;
+            return login(&login_dto, state).await;
         }
         Err(e) => Err(e),
     }
 }
 
-pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError> {
-    match users::service::get_user_by_login_dto_as_admin(dto, pool).await {
+pub async fn login(dto: &LoginDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+    match users::service::get_user_by_login_dto_as_admin(dto, &state.pool).await {
         Ok(user) => {
             let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
             else {
@@ -66,9 +66,9 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
                 });
             }
 
-            match devices::service::create_device_as_admin(&user, pool).await {
+            match devices::service::create_device_as_admin(&user, &state.pool).await {
                 Ok(device) => Ok(AccessInfo {
-                    access_token: sign_jwt(&user.id, None),
+                    access_token: sign_jwt(&user.id, &state.envy.jwt_secret, None),
                     refresh_token: Some(device.refresh_token),
                     device_id: Some(device.id),
                 }),
@@ -82,31 +82,38 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
 pub async fn request_email_update_mail(
     dto: &RequestEmailUpdateDto,
     claims: &Claims,
-    pool: &PgPool,
+    state: &AppState,
 ) -> Result<(), ApiError> {
-    let user_result = users::service::get_user_by_id(&claims.id, claims, pool).await;
+    let user_result = users::service::get_user_by_id(&claims.id, claims, &state.pool).await;
     let Ok(user) = user_result
     else {
         return Err(user_result.unwrap_err());
     };
 
-    if let Ok(_) = users::service::get_user_by_email_as_admin(&dto.email, pool).await {
+    if let Ok(_) = users::service::get_user_by_email_as_admin(&dto.email, &state.pool).await {
         return Err(ApiError {
             code: StatusCode::CONFLICT,
             message: "Email already exists.".to_string(),
         });
     }
 
-    match users::service::edit_user_email_pending_by_id_as_admin(&claims.id, &dto.email, pool).await
+    match users::service::edit_user_email_pending_by_id_as_admin(
+        &claims.id,
+        &dto.email,
+        &state.pool,
+    )
+    .await
     {
         Ok(_) => {
+            let envy = state.envy.clone();
             let email = dto.email.clone();
             let id = claims.id.clone();
 
             tokio::spawn(async move {
-                let access_token = sign_jwt(&id, Some(PepperType::EDIT_EMAIL));
-                let template = request_email_update_template(&user, &access_token);
-                mail::service::send_mail(&email, &template.0, &template.1).await
+                let access_token = sign_jwt(&id, &envy.jwt_secret, Some(PepperType::EDIT_EMAIL));
+                let template =
+                    request_email_update_template(&user, &access_token, &envy.fontend_url);
+                mail::service::send_mail(&email, &template.0, &template.1, &envy).await
             });
 
             Ok(())
@@ -115,10 +122,14 @@ pub async fn request_email_update_mail(
     }
 }
 
-pub async fn process_email_edit(access_token: &str, pool: &PgPool) -> Result<(), ApiError> {
-    match decode_jwt(access_token.to_string(), Some(PepperType::EDIT_EMAIL)) {
+pub async fn process_email_edit(access_token: &str, state: &AppState) -> Result<(), ApiError> {
+    match decode_jwt(
+        access_token.to_string(),
+        &state.envy.jwt_secret,
+        Some(PepperType::EDIT_EMAIL),
+    ) {
         Ok(claims) => {
-            users::service::approve_user_email_pending_by_id_as_admin(&claims.id, pool).await
+            users::service::approve_user_email_pending_by_id_as_admin(&claims.id, &state.pool).await
         }
         Err(e) => match e {
             ErrorKind::ExpiredSignature => Err(ApiError {
@@ -135,14 +146,18 @@ pub async fn process_email_edit(access_token: &str, pool: &PgPool) -> Result<(),
 
 pub async fn request_password_update_mail(
     dto: &RequestPasswordUpdateDto,
-    pool: &PgPool,
+    state: &AppState,
 ) -> Result<(), ApiError> {
-    match users::service::get_user_by_email_as_admin(&dto.email, pool).await {
+    match users::service::get_user_by_email_as_admin(&dto.email, &state.pool).await {
         Ok(user) => {
+            let envy = state.envy.clone();
+
             tokio::spawn(async move {
-                let access_token = sign_jwt(&user.id, Some(PepperType::EDIT_PASSWORD));
-                let template = request_password_update_template(&user, &access_token);
-                mail::service::send_mail(&user.email, &template.0, &template.1).await
+                let access_token =
+                    sign_jwt(&user.id, &envy.jwt_secret, Some(PepperType::EDIT_PASSWORD));
+                let template =
+                    request_password_update_template(&user, &access_token, &envy.fontend_url);
+                mail::service::send_mail(&user.email, &template.0, &template.1, &envy).await
             });
 
             Ok(())
@@ -154,11 +169,15 @@ pub async fn request_password_update_mail(
 pub async fn process_password_edit(
     access_token: &str,
     dto: &EditPasswordDto,
-    pool: &PgPool,
+    state: &AppState,
 ) -> Result<(), ApiError> {
-    match decode_jwt(access_token.to_string(), Some(PepperType::EDIT_PASSWORD)) {
+    match decode_jwt(
+        access_token.to_string(),
+        &state.envy.jwt_secret,
+        Some(PepperType::EDIT_PASSWORD),
+    ) {
         Ok(claims) => {
-            users::service::edit_user_password_by_id_as_admin(&claims.id, dto, pool).await
+            users::service::edit_user_password_by_id_as_admin(&claims.id, dto, &state.pool).await
         }
         Err(e) => match e {
             ErrorKind::ExpiredSignature => Err(ApiError {
@@ -181,10 +200,10 @@ pub async fn get_devices(
     return devices::service::get_devices(dto, claims, pool).await;
 }
 
-pub async fn refresh(dto: &RefreshDeviceDto, pool: &PgPool) -> Result<AccessInfo, ApiError> {
-    match devices::service::refresh_device_as_admin(dto, pool).await {
+pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+    match devices::service::refresh_device_as_admin(dto, &state.pool).await {
         Ok(_) => Ok(AccessInfo {
-            access_token: sign_jwt(&dto.user_id, None),
+            access_token: sign_jwt(&dto.user_id, &state.envy.jwt_secret, None),
             refresh_token: None,
             device_id: None,
         }),

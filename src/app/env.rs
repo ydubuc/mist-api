@@ -1,22 +1,24 @@
-#[non_exhaustive]
-pub struct Env;
+use serde::Deserialize;
 
-impl Env {
-    pub const PORT: &str = "PORT";
+#[derive(Debug, Clone, Deserialize)]
+pub struct Envy {
+    pub app_env: String,
+    pub fontend_url: String,
+    pub port: Option<u16>,
 
-    pub const DATABASE_URL: &str = "DATABASE_URL";
+    pub database_url: String,
 
-    pub const JWT_SECRET: &str = "JWT_SECRET";
+    pub jwt_secret: String,
 
-    pub const OPENAI_API_KEY: &str = "OPENAI_API_KEY";
+    pub openai_api_key: String,
 
-    pub const BACKBLAZE_KEY_ID: &str = "BACKBLAZE_KEY_ID";
-    pub const BACKBLAZE_APP_KEY: &str = "BACKBLAZE_APP_KEY";
-    pub const BACKBLAZE_BUCKET_ID: &str = "BACKBLAZE_BUCKET_ID";
+    pub backblaze_key_id: String,
+    pub backblaze_app_key: String,
+    pub backblaze_bucket_id: String,
 
-    pub const FCM_API_KEY: &str = "FCM_API_KEY";
+    pub fcm_api_key: String,
 
-    pub const MAIL_HOST: &str = "MAIL_HOST";
-    pub const MAIL_USER: &str = "MAIL_USER";
-    pub const MAIL_PASS: &str = "MAIL_PASS";
+    pub mail_host: String,
+    pub mail_user: String,
+    pub mail_pass: String,
 }

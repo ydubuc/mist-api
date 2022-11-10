@@ -20,8 +20,8 @@ use crate::{
 
 use super::{
     dtos::{
-        edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
-        register_dto::RegisterDto, request_email_update_dto::RequestEmailUpdateDto,
+        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
     jwt::models::claims::Claims,
@@ -33,15 +33,16 @@ pub async fn register(
     State(state): State<AppState>,
     JsonFromRequest(dto): JsonFromRequest<RegisterDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
-    match dto.validate() {
-        Ok(_) => match service::register(&dto, &state.pool).await {
-            Ok(user) => Ok(Json(user)),
-            Err(e) => Err(e),
-        },
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
+    }
+
+    match service::register(&dto, &state).await {
+        Ok(user) => Ok(Json(user)),
+        Err(e) => Err(e),
     }
 }
 
@@ -49,15 +50,16 @@ pub async fn login(
     State(state): State<AppState>,
     JsonFromRequest(dto): JsonFromRequest<LoginDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
-    match dto.validate() {
-        Ok(_) => match service::login(&dto, &state.pool).await {
-            Ok(user) => Ok(Json(user)),
-            Err(e) => Err(e),
-        },
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
+    }
+
+    match service::login(&dto, &state).await {
+        Ok(user) => Ok(Json(user)),
+        Err(e) => Err(e),
     }
 }
 
@@ -66,8 +68,8 @@ pub async fn request_email_update_mail(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<RequestEmailUpdateDto>,
 ) -> Result<(), ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => service::request_email_update_mail(&dto, &claims, &state.pool).await,
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => service::request_email_update_mail(&dto, &claims, &state).await,
         Err(e) => Err(e),
     }
 }
@@ -76,20 +78,21 @@ pub async fn process_email_edit(
     State(state): State<AppState>,
     Path(access_token): Path<String>,
 ) -> Result<(), ApiError> {
-    service::process_email_edit(&access_token, &state.pool).await
+    service::process_email_edit(&access_token, &state).await
 }
 
 pub async fn request_password_update_mail(
     State(state): State<AppState>,
     JsonFromRequest(dto): JsonFromRequest<RequestPasswordUpdateDto>,
 ) -> Result<(), ApiError> {
-    match dto.validate() {
-        Ok(_) => service::request_password_update_mail(&dto, &state.pool).await,
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
     }
+
+    service::request_password_update_mail(&dto, &state).await
 }
 
 pub async fn process_password_edit(
@@ -97,13 +100,14 @@ pub async fn process_password_edit(
     Path(access_token): Path<String>,
     JsonFromRequest(dto): JsonFromRequest<EditPasswordDto>,
 ) -> Result<(), ApiError> {
-    match dto.validate() {
-        Ok(_) => service::process_password_edit(&access_token, &dto, &state.pool).await,
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
     }
+
+    service::process_password_edit(&access_token, &dto, &state).await
 }
 
 pub async fn get_devices(
@@ -111,17 +115,20 @@ pub async fn get_devices(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetDevicesFilterDto>,
 ) -> Result<Json<Vec<Device>>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::get_devices(&dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::get_devices(&dto, &claims, &state.pool).await {
                 Ok(posts) => Ok(Json(posts)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -130,15 +137,16 @@ pub async fn refresh(
     State(state): State<AppState>,
     JsonFromRequest(dto): JsonFromRequest<RefreshDeviceDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
-    match dto.validate() {
-        Ok(_) => match service::refresh(&dto, &state.pool).await {
-            Ok(access_info) => Ok(Json(access_info)),
-            Err(e) => Err(e),
-        },
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
+    }
+
+    match service::refresh(&dto, &state).await {
+        Ok(access_info) => Ok(Json(access_info)),
+        Err(e) => Err(e),
     }
 }
 
@@ -146,11 +154,12 @@ pub async fn logout(
     State(state): State<AppState>,
     JsonFromRequest(dto): JsonFromRequest<LogoutDeviceDto>,
 ) -> Result<(), ApiError> {
-    match dto.validate() {
-        Ok(_) => service::logout(&dto, &state.pool).await,
-        Err(e) => Err(ApiError {
+    if let Err(e) = dto.validate() {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: e.to_string(),
-        }),
+        });
     }
+
+    service::logout(&dto, &state.pool).await
 }

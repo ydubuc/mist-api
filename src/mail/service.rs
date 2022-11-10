@@ -5,18 +5,13 @@ use lettre::{
     AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
 };
 
-use crate::app::{env::Env, models::api_error::ApiError};
+use crate::app::{env::Envy, models::api_error::ApiError};
 
-pub async fn send_mail(to: &str, subject: &str, body: &str) -> Result<(), ApiError> {
-    let mail_host = std::env::var(Env::MAIL_HOST).unwrap();
-    let mail_user = std::env::var(Env::MAIL_USER).unwrap();
-    let mail_pass = std::env::var(Env::MAIL_PASS).unwrap();
-
+pub async fn send_mail(to: &str, subject: &str, body: &str, envy: &Envy) -> Result<(), ApiError> {
     let mail = lettre::Message::builder()
         .to(to.parse().unwrap())
-        .from(mail_user.parse().unwrap())
+        .from(envy.mail_user.parse().unwrap())
         .subject(subject)
-        // .body(String::from(body))
         .multipart(
             MultiPart::alternative()
                 .singlepart(
@@ -32,9 +27,12 @@ pub async fn send_mail(to: &str, subject: &str, body: &str) -> Result<(), ApiErr
         )
         .unwrap();
 
-    let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&mail_host)
+    let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&envy.mail_host)
         .unwrap()
-        .credentials(Credentials::new(mail_user, mail_pass))
+        .credentials(Credentials::new(
+            envy.mail_user.to_string(),
+            envy.mail_pass.to_string(),
+        ))
         .build();
 
     match mailer.send(mail).await {

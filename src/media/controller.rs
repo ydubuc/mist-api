@@ -24,17 +24,20 @@ pub async fn generate_media(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<GenerateMediaDto>,
 ) -> Result<Json<GenerateMediaRequest>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::generate_media(&dto, &claims, &state.pool, &state.b2).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::generate_media(&dto, &claims, &state).await {
                 Ok(generate_media_request) => Ok(Json(generate_media_request)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -44,9 +47,8 @@ pub async fn import_media(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     multipart: Multipart,
 ) -> Result<Json<Vec<Media>>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match service::import_media(multipart, &claims, &state.pool, &state.b2).await
-        {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => match service::import_media(multipart, &claims, &state).await {
             Ok(media) => Ok(Json(media)),
             Err(e) => Err(e),
         },
@@ -59,17 +61,20 @@ pub async fn get_media(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetMediaFilterDto>,
 ) -> Result<Json<Vec<Media>>, ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => match dto.validate() {
-            Ok(_) => match service::get_media(&dto, &claims, &state.pool).await {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            match service::get_media(&dto, &claims, &state.pool).await {
                 Ok(media) => Ok(Json(media)),
                 Err(e) => Err(e),
-            },
-            Err(e) => Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: e.to_string(),
-            }),
-        },
+            }
+        }
         Err(e) => Err(e),
     }
 }
@@ -79,7 +84,7 @@ pub async fn get_media_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Media>, ApiError> {
-    match Claims::from_header(authorization) {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => match service::get_media_by_id(&id, &claims, &state.pool).await {
             Ok(media) => Ok(Json(media)),
             Err(e) => Err(e),
@@ -93,10 +98,8 @@ pub async fn delete_media_by_id(
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
-    match Claims::from_header(authorization) {
-        Ok(claims) => {
-            return service::delete_media_by_id(&id, &claims, &state.pool, &state.b2).await
-        }
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => service::delete_media_by_id(&id, &claims, &state.pool, &state.b2).await,
         Err(e) => Err(e),
     }
 }

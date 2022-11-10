@@ -12,8 +12,7 @@ use crate::{
     },
     auth::{
         dtos::{
-            edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
-            register_dto::RegisterDto,
+            edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
         },
         jwt::models::claims::Claims,
     },
