@@ -22,7 +22,7 @@ impl Claims {
                 ErrorKind::ExpiredSignature => {
                     return Err(ApiError {
                         code: StatusCode::UNAUTHORIZED,
-                        message: "Token expired".to_string(),
+                        message: "Token expired.".to_string(),
                     });
                 }
                 _ => {

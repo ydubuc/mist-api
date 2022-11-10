@@ -5,6 +5,7 @@ CREATE TABLE users(
     displayname VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     email_key VARCHAR(255) NOT NULL UNIQUE,
+    email_pending VARCHAR(255),
     avatar_url TEXT,
     password_hash VARCHAR(255) NOT NULL,
     updated_at BIGINT NOT NULL,

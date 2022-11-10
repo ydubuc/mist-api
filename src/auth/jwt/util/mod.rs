@@ -13,7 +13,7 @@ use super::config::JWT_EXP;
 
 // FIXME: unsafe unwraps
 
-pub fn sign_jwt(uid: &str, pepper: Option<&str>) -> String {
+pub fn sign_jwt(id: &str, pepper: Option<&str>) -> String {
     let iat = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -21,7 +21,7 @@ pub fn sign_jwt(uid: &str, pepper: Option<&str>) -> String {
     let exp = iat + JWT_EXP;
 
     let claims = Claims {
-        id: uid.to_string(),
+        id: id.to_string(),
         iat,
         exp,
     };

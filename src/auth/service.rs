@@ -12,13 +12,20 @@ use crate::{
         },
         models::device::Device,
     },
-    mail::{self, templates::request_password_update_template::request_password_update_template},
+    mail::{
+        self,
+        templates::{
+            request_email_update_template::request_email_update_template,
+            request_password_update_template::request_password_update_template,
+        },
+    },
     users,
 };
 
 use super::{
     dtos::{
-        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
+        register_dto::RegisterDto, request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
     jwt::{
@@ -69,6 +76,60 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
             }
         }
         Err(e) => Err(e),
+    }
+}
+
+pub async fn request_email_update_mail(
+    dto: &RequestEmailUpdateDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let user_result = users::service::get_user_by_id(&claims.id, claims, pool).await;
+    let Ok(user) = user_result
+    else {
+        return Err(user_result.unwrap_err());
+    };
+
+    if let Ok(_) = users::service::get_user_by_email_as_admin(&dto.email, pool).await {
+        return Err(ApiError {
+            code: StatusCode::CONFLICT,
+            message: "Email already exists.".to_string(),
+        });
+    }
+
+    match users::service::edit_user_email_pending_by_id_as_admin(&claims.id, &dto.email, pool).await
+    {
+        Ok(_) => {
+            let email = dto.email.clone();
+            let id = claims.id.clone();
+
+            tokio::spawn(async move {
+                let access_token = sign_jwt(&id, Some(PepperType::EDIT_EMAIL));
+                let template = request_email_update_template(&user, &access_token);
+                mail::service::send_mail(&email, &template.0, &template.1).await
+            });
+
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn process_email_edit(access_token: &str, pool: &PgPool) -> Result<(), ApiError> {
+    match decode_jwt(access_token.to_string(), Some(PepperType::EDIT_EMAIL)) {
+        Ok(claims) => {
+            users::service::approve_user_email_pending_by_id_as_admin(&claims.id, pool).await
+        }
+        Err(e) => match e {
+            ErrorKind::ExpiredSignature => Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Token has expired.".to_string(),
+            }),
+            _ => Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Invalid token.".to_string(),
+            }),
+        },
     }
 }
 

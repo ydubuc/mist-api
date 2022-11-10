@@ -15,6 +15,8 @@ pub struct User {
     pub email: String,
     #[serde(skip_serializing)]
     pub email_key: String,
+    #[serde(skip_serializing)]
+    pub email_pending: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
@@ -34,6 +36,7 @@ impl User {
             displayname: dto.username.to_string(),
             email: dto.email.to_string(),
             email_key: dto.email.to_lowercase(),
+            email_pending: None,
             avatar_url: None,
             password_hash: hash,
             updated_at: current_time as i64,

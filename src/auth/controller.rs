@@ -20,7 +20,8 @@ use crate::{
 
 use super::{
     dtos::{
-        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
+        register_dto::RegisterDto, request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
     jwt::models::claims::Claims,
@@ -58,6 +59,24 @@ pub async fn login(
             message: e.to_string(),
         }),
     }
+}
+
+pub async fn request_email_update_mail(
+    State(state): State<AppState>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+    JsonFromRequest(dto): JsonFromRequest<RequestEmailUpdateDto>,
+) -> Result<(), ApiError> {
+    match Claims::from_header(authorization) {
+        Ok(claims) => service::request_email_update_mail(&dto, &claims, &state.pool).await,
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn process_email_edit(
+    State(state): State<AppState>,
+    Path(access_token): Path<String>,
+) -> Result<(), ApiError> {
+    service::process_email_edit(&access_token, &state.pool).await
 }
 
 pub async fn request_password_update_mail(

@@ -79,6 +79,14 @@ async fn main() {
         .route("/auth/register", post(auth::controller::register))
         .route("/auth/login", post(auth::controller::login))
         .route(
+            "/auth/email",
+            post(auth::controller::request_email_update_mail),
+        )
+        .route(
+            "/auth/email/:access-token",
+            patch(auth::controller::process_email_edit),
+        )
+        .route(
             "/auth/password",
             post(auth::controller::request_password_update_mail),
         )

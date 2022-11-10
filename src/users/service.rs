@@ -12,7 +12,8 @@ use crate::{
     },
     auth::{
         dtos::{
-            edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+            edit_email_dto::EditEmailDto, edit_password_dto::EditPasswordDto, login_dto::LoginDto,
+            register_dto::RegisterDto,
         },
         jwt::models::claims::Claims,
     },
@@ -247,6 +248,67 @@ pub async fn edit_user_by_id(
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn edit_user_email_pending_by_id_as_admin(
+    id: &str,
+    email_pending: &str,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let sqlx_result = sqlx::query(
+        "
+        UPDATE users SET email_pending = $1
+        WHERE id = $2
+        ",
+    )
+    .bind(email_pending)
+    .bind(id)
+    .execute(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(result) => match result.rows_affected() > 0 {
+            true => Ok(()),
+            false => Err(ApiError {
+                code: StatusCode::NOT_FOUND,
+                message: "Failed to set user email pending.".to_string(),
+            }),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn approve_user_email_pending_by_id_as_admin(
+    id: &str,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let sqlx_result = sqlx::query(
+        "
+        UPDATE users
+        SET email = email_pending, email_key = LOWER(email_pending), email_pending = NULL
+        WHERE id = $1
+        ",
+    )
+    .bind(id)
+    .execute(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(result) => match result.rows_affected() > 0 {
+            true => Ok(()),
+            false => Err(ApiError {
+                code: StatusCode::NOT_FOUND,
+                message: "Failed to set user email.".to_string(),
+            }),
         },
         Err(e) => {
             tracing::error!(%e);
