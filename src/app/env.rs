@@ -15,4 +15,8 @@ impl Env {
     pub const BACKBLAZE_BUCKET_ID: &str = "BACKBLAZE_BUCKET_ID";
 
     pub const FCM_API_KEY: &str = "FCM_API_KEY";
+
+    pub const MAIL_HOST: &str = "MAIL_HOST";
+    pub const MAIL_USER: &str = "MAIL_USER";
+    pub const MAIL_PASS: &str = "MAIL_PASS";
 }

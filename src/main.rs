@@ -17,6 +17,7 @@ mod app;
 mod auth;
 mod devices;
 mod generate_media_requests;
+mod mail;
 mod media;
 mod posts;
 mod users;
@@ -46,6 +47,9 @@ async fn main() {
     let b2_key = std::env::var(Env::BACKBLAZE_APP_KEY).expect("env: BACKBLAZE_KEY_ID missing");
     let b2_bucket_id =
         std::env::var(Env::BACKBLAZE_BUCKET_ID).expect("env: BACKBLAZE_BUCKET_ID missing");
+    let mail_host = std::env::var(Env::MAIL_HOST).expect("env: MAIL_HOST missing");
+    let mail_user = std::env::var(Env::MAIL_USER).expect("env: MAIL_USER missing");
+    let mail_pass = std::env::var(Env::MAIL_PASS).expect("env: MAIL_PASS missing");
 
     println!("loaded env");
 
@@ -74,6 +78,14 @@ async fn main() {
         // auth
         .route("/auth/register", post(auth::controller::register))
         .route("/auth/login", post(auth::controller::login))
+        .route(
+            "/auth/password",
+            post(auth::controller::request_password_update_mail),
+        )
+        .route(
+            "/auth/password/:access-token",
+            patch(auth::controller::process_password_edit),
+        )
         .route("/auth/refresh", post(auth::controller::refresh))
         .route("/auth/devices", get(auth::controller::get_devices))
         .route("/auth/logout", post(auth::controller::logout))

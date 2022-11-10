@@ -13,7 +13,7 @@ use super::config::JWT_EXP;
 
 // FIXME: unsafe unwraps
 
-pub fn sign_jwt(uid: &str) -> String {
+pub fn sign_jwt(uid: &str, pepper: Option<&str>) -> String {
     let iat = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -25,19 +25,25 @@ pub fn sign_jwt(uid: &str) -> String {
         iat,
         exp,
     };
-    let secret = env::var(Env::JWT_SECRET).expect("environment: JWT_SECRET missing");
-    let jwt = encode(
+    let mut secret = env::var(Env::JWT_SECRET).unwrap();
+    if let Some(pepper) = pepper {
+        secret = secret + pepper
+    }
+
+    encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
-    .unwrap();
-
-    jwt
+    .unwrap()
 }
 
-pub fn decode_jwt(jwt: String) -> Result<Claims, ErrorKind> {
-    let secret = env::var(Env::JWT_SECRET).expect("environment: JWT_SECRET missing");
+pub fn decode_jwt(jwt: String, pepper: Option<&str>) -> Result<Claims, ErrorKind> {
+    let mut secret = env::var(Env::JWT_SECRET).unwrap();
+    if let Some(pepper) = pepper {
+        secret = secret + pepper;
+    }
+
     let result = decode::<Claims>(
         &jwt,
         &DecodingKey::from_secret(&secret.as_ref()),

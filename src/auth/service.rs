@@ -1,4 +1,5 @@
 use axum::http::StatusCode;
+use jsonwebtoken::errors::ErrorKind;
 use sqlx::PgPool;
 
 use crate::{
@@ -11,12 +12,20 @@ use crate::{
         },
         models::device::Device,
     },
+    mail::{self, templates::request_password_update_template::request_password_update_template},
     users,
 };
 
 use super::{
-    dtos::{login_dto::LoginDto, register_dto::RegisterDto},
-    jwt::{models::claims::Claims, util::sign_jwt},
+    dtos::{
+        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        request_password_update_dto::RequestPasswordUpdateDto,
+    },
+    jwt::{
+        enums::pepper_type::PepperType,
+        models::claims::Claims,
+        util::{decode_jwt, sign_jwt},
+    },
     models::access_info::AccessInfo,
 };
 
@@ -52,7 +61,7 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
 
             match devices::service::create_device_as_admin(&user, pool).await {
                 Ok(device) => Ok(AccessInfo {
-                    access_token: sign_jwt(&user.id),
+                    access_token: sign_jwt(&user.id, None),
                     refresh_token: Some(device.refresh_token),
                     device_id: Some(device.id),
                 }),
@@ -60,6 +69,46 @@ pub async fn login(dto: &LoginDto, pool: &PgPool) -> Result<AccessInfo, ApiError
             }
         }
         Err(e) => Err(e),
+    }
+}
+
+pub async fn request_password_update_mail(
+    dto: &RequestPasswordUpdateDto,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    match users::service::get_user_by_email_as_admin(&dto.email, pool).await {
+        Ok(user) => {
+            tokio::spawn(async move {
+                let access_token = sign_jwt(&user.id, Some(PepperType::EDIT_PASSWORD));
+                let template = request_password_update_template(&user, &access_token);
+                mail::service::send_mail(&user.email, &template.0, &template.1).await
+            });
+
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn process_password_edit(
+    access_token: &str,
+    dto: &EditPasswordDto,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    match decode_jwt(access_token.to_string(), Some(PepperType::EDIT_PASSWORD)) {
+        Ok(claims) => {
+            users::service::edit_user_password_by_id_as_admin(&claims.id, dto, pool).await
+        }
+        Err(e) => match e {
+            ErrorKind::ExpiredSignature => Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Token has expired.".to_string(),
+            }),
+            _ => Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Invalid token.".to_string(),
+            }),
+        },
     }
 }
 
@@ -74,7 +123,7 @@ pub async fn get_devices(
 pub async fn refresh(dto: &RefreshDeviceDto, pool: &PgPool) -> Result<AccessInfo, ApiError> {
     match devices::service::refresh_device_as_admin(dto, pool).await {
         Ok(_) => Ok(AccessInfo {
-            access_token: sign_jwt(&dto.user_id),
+            access_token: sign_jwt(&dto.user_id, None),
             refresh_token: None,
             device_id: None,
         }),

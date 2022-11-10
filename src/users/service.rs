@@ -11,7 +11,9 @@ use crate::{
         },
     },
     auth::{
-        dtos::{login_dto::LoginDto, register_dto::RegisterDto},
+        dtos::{
+            edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        },
         jwt::models::claims::Claims,
     },
     media,
@@ -245,6 +247,42 @@ pub async fn edit_user_by_id(
         Ok(user) => match user {
             Some(user) => Ok(user),
             None => Err(UsersApiError::UserNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn edit_user_password_by_id_as_admin(
+    id: &str,
+    dto: &EditPasswordDto,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let Ok(hash) = hasher::hash(dto.password.to_string()).await
+    else {
+        return Err(DefaultApiError::InternalServerError.value());
+    };
+
+    let sqlx_result = sqlx::query(
+        "
+        UPDATE users SET password_hash = $1
+        WHERE id = $2
+        ",
+    )
+    .bind(hash)
+    .bind(id)
+    .execute(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(result) => match result.rows_affected() > 0 {
+            true => Ok(()),
+            false => Err(ApiError {
+                code: StatusCode::NOT_FOUND,
+                message: "Failed to set user password.".to_string(),
+            }),
         },
         Err(e) => {
             tracing::error!(%e);
