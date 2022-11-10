@@ -56,6 +56,7 @@ CREATE INDEX media_created_at ON media (created_at);
 
 CREATE TABLE generate_media_requests(
     id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     status VARCHAR(255) NOT NULL,
     generate_media_dto JSONB NOT NULL,
     created_at BIGINT NOT NULL

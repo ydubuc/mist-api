@@ -160,6 +160,30 @@ pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<
     let sqlx_result = sqlx::query_as::<_, Post>(
         "
         SELECT * FROM posts
+        WHERE posts.id = $1 AND user_id = $2
+        ",
+    )
+    .bind(id)
+    .bind(&claims.id)
+    .fetch_optional(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(post) => match post {
+            Some(post) => Ok(post),
+            None => Err(PostsApiError::PostNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn get_post_by_id_as_admin(id: &str, pool: &PgPool) -> Result<Post, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, Post>(
+        "
+        SELECT * FROM posts
         WHERE posts.id = $1
         ",
     )
@@ -169,10 +193,7 @@ pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<
 
     match sqlx_result {
         Ok(post) => match post {
-            Some(post) => {
-                println!("{:?}", post);
-                return Ok(post);
-            }
+            Some(post) => Ok(post),
             None => Err(PostsApiError::PostNotFound.value()),
         },
         Err(e) => {
@@ -219,7 +240,8 @@ pub async fn edit_post_by_id(
 pub async fn delete_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
-        DELETE FROM posts WHERE id = $1 AND user_id = $2
+        DELETE FROM posts
+        WHERE id = $1 AND user_id = $2
         ",
     )
     .bind(id)

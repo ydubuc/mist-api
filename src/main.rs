@@ -100,6 +100,11 @@ async fn main() {
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
         .route("/media/:id", delete(media::controller::delete_media_by_id))
+        // generate_media_requests
+        .route(
+            "/generate-media-requests",
+            get(generate_media_requests::controller::get_generate_media_requests),
+        )
         // layers
         .layer(cors);
 

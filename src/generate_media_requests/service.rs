@@ -12,6 +12,7 @@ use crate::{
 };
 
 use super::{
+    dtos::get_generate_media_requests_filter_dto::GetGenerateMediaRequestsFilterDto,
     enums::generate_media_request_status::GenerateMediaRequestStatus,
     models::generate_media_request::GenerateMediaRequest,
 };
@@ -26,12 +27,13 @@ pub async fn create_generate_media_request(
     let sqlx_result = sqlx::query(
         "
         INSERT INTO generate_media_requests (
-            id, status, generate_media_dto, created_at
+            id, user_id, status, generate_media_dto, created_at
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3, $4, $5)
         ",
     )
     .bind(&generate_media_request.id)
+    .bind(&generate_media_request.user_id)
     .bind(&generate_media_request.status)
     .bind(&generate_media_request.generate_media_dto)
     .bind(&generate_media_request.created_at)
@@ -63,6 +65,38 @@ pub async fn create_generate_media_request(
                     Err(DefaultApiError::InternalServerError.value())
                 }
             }
+        }
+    }
+}
+
+pub async fn get_generate_media_requests(
+    dto: &GetGenerateMediaRequestsFilterDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<Vec<GenerateMediaRequest>, ApiError> {
+    let sql_result = dto.to_sql();
+    let Ok(sql) = sql_result
+    else {
+        return Err(sql_result.err().unwrap());
+    };
+
+    let mut sqlx = sqlx::query_as::<_, GenerateMediaRequest>(&sql);
+
+    if let Some(id) = &dto.id {
+        sqlx = sqlx.bind(id);
+    }
+    if let Some(user_id) = &dto.user_id {
+        sqlx = sqlx.bind(user_id)
+    }
+    if let Some(status) = &dto.status {
+        sqlx = sqlx.bind(status)
+    }
+
+    match sqlx.fetch_all(pool).await {
+        Ok(generate_media_requests) => Ok(generate_media_requests),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }

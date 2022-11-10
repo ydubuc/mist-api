@@ -3,7 +3,6 @@ use sqlx::PgPool;
 
 use crate::{
     app::{
-        self,
         errors::DefaultApiError,
         models::api_error::ApiError,
         util::{
@@ -15,7 +14,6 @@ use crate::{
         dtos::{login_dto::LoginDto, register_dto::RegisterDto},
         jwt::models::claims::Claims,
     },
-    devices::{self, dtos::get_devices_filter_dto::GetDevicesFilterDto},
     media,
 };
 
@@ -216,13 +214,7 @@ pub async fn edit_user_by_id(
 
     if let Some(avatar_media_id) = &dto.avatar_media_id {
         match media::service::get_media_by_id(avatar_media_id, claims, pool).await {
-            Ok(media) => {
-                if media.user_id != claims.id {
-                    return Err(UsersApiError::PermissionDenied.value());
-                }
-
-                avatar_url = Some(media.url)
-            }
+            Ok(media) => avatar_url = Some(media.url),
             Err(e) => return Err(e),
         }
     } else {
@@ -266,6 +258,10 @@ pub async fn delete_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
         return Err(UsersApiError::PermissionDenied.value());
     }
 
+    return delete_user_by_id_as_admin(id, pool).await;
+}
+
+pub async fn delete_user_by_id_as_admin(id: &str, pool: &PgPool) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
         DELETE FROM users WHERE id = $1

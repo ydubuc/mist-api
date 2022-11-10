@@ -292,6 +292,29 @@ pub async fn get_media(
 pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
+        SELECT * FROM media WHERE id = $1 AND user_id = $2
+        ",
+    )
+    .bind(id)
+    .bind(&claims.id)
+    .fetch_optional(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(media) => match media {
+            Some(media) => Ok(media),
+            None => Err(MediaApiError::MediaNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn get_media_by_id_as_admin(id: &str, pool: &PgPool) -> Result<Media, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, Media>(
+        "
         SELECT * FROM media WHERE id = $1
         ",
     )
@@ -300,8 +323,8 @@ pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result
     .await;
 
     match sqlx_result {
-        Ok(post) => match post {
-            Some(post) => Ok(post),
+        Ok(media) => match media {
+            Some(media) => Ok(media),
             None => Err(MediaApiError::MediaNotFound.value()),
         },
         Err(e) => {
@@ -328,7 +351,7 @@ pub async fn delete_media_by_id(
                         ",
                     )
                     .bind(id)
-                    .bind(&claims.id)
+                    .bind(&media.user_id)
                     .execute(pool)
                     .await;
 

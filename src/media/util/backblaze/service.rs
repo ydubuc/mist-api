@@ -2,12 +2,16 @@ use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
 
-use crate::app::{
-    errors::DefaultApiError, models::api_error::ApiError,
-    util::multipart::models::file_properties::FileProperties,
+use crate::{
+    app::{
+        errors::DefaultApiError, models::api_error::ApiError,
+        util::multipart::models::file_properties::FileProperties,
+    },
+    media::util::backblaze::enums::backblaze_delete_file_error_code::BackBlazeDeleteFileErrorCode,
 };
 
 use super::models::{
+    backblaze_delete_file_error::BackblazeDeleteFileError,
     backblaze_delete_file_response::BackblazeDeleteFileResponse,
     backblaze_upload_file_response::BackblazeUploadFileResponse,
     backblaze_upload_url_response::BackblazeUploadUrlResponse,
@@ -139,7 +143,7 @@ pub async fn delete_file(
     file_name: &str,
     file_id: &str,
     b2: &B2,
-) -> Result<BackblazeDeleteFileResponse, ApiError> {
+) -> Result<Option<BackblazeDeleteFileResponse>, ApiError> {
     let client = reqwest::Client::new();
 
     let mut headers = header::HeaderMap::new();
@@ -161,10 +165,25 @@ pub async fn delete_file(
     match result {
         Ok(res) => match res.text().await {
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(delete_file_res) => Ok(delete_file_res),
+                Ok(delete_file_res) => Ok(Some(delete_file_res)),
                 Err(_) => {
-                    tracing::error!(%text);
-                    Err(DefaultApiError::InternalServerError.value())
+                    let delete_file_error_result: Result<
+                        BackblazeDeleteFileError,
+                        serde_json::Error,
+                    > = serde_json::from_str(&text);
+
+                    if let Ok(delete_file_error) = delete_file_error_result {
+                        match delete_file_error.code.as_ref() {
+                            BackBlazeDeleteFileErrorCode::FILE_NOT_PRESENT => return Ok(None),
+                            _ => {
+                                tracing::error!(%text);
+                                Err(DefaultApiError::InternalServerError.value())
+                            }
+                        }
+                    } else {
+                        tracing::error!(%text);
+                        Err(DefaultApiError::InternalServerError.value())
+                    }
                 }
             },
             Err(e) => {
