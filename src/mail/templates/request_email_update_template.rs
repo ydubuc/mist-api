@@ -3,9 +3,9 @@ use crate::{app, users::models::user::User};
 pub fn request_email_update_template(
     user: &User,
     access_token: &str,
-    fontend_url: &str,
+    frontend_url: &str,
 ) -> (String, String) {
-    let url = format!("{}/auth/email/{}", fontend_url, access_token);
+    let url = format!("{}/auth/email/{}", frontend_url, access_token);
 
     (
         format!("{} email update", app::config::APP_NAME),

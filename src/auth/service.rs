@@ -112,7 +112,7 @@ pub async fn request_email_update_mail(
             tokio::spawn(async move {
                 let access_token = sign_jwt(&id, &envy.jwt_secret, Some(PepperType::EDIT_EMAIL));
                 let template =
-                    request_email_update_template(&user, &access_token, &envy.fontend_url);
+                    request_email_update_template(&user, &access_token, &envy.frontend_url);
                 mail::service::send_mail(&email, &template.0, &template.1, &envy).await
             });
 
@@ -156,7 +156,7 @@ pub async fn request_password_update_mail(
                 let access_token =
                     sign_jwt(&user.id, &envy.jwt_secret, Some(PepperType::EDIT_PASSWORD));
                 let template =
-                    request_password_update_template(&user, &access_token, &envy.fontend_url);
+                    request_password_update_template(&user, &access_token, &envy.frontend_url);
                 mail::service::send_mail(&user.email, &template.0, &template.1, &envy).await
             });
 

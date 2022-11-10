@@ -3,7 +3,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Envy {
     pub app_env: String,
-    pub fontend_url: String,
+    pub frontend_url: String,
     pub port: Option<u16>,
 
     pub database_url: String,
