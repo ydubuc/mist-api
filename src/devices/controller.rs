@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{
-    app::models::{api_error::ApiError, json_from_request::JsonFromRequest},
+    app::{models::api_error::ApiError, structs::json_from_request::JsonFromRequest},
     auth::jwt::models::claims::Claims,
     AppState,
 };

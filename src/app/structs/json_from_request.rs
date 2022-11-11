@@ -1,7 +1,6 @@
+use crate::app::models::api_error::ApiError;
 use axum::Json;
 use axum_macros::FromRequest;
-
-use super::api_error::ApiError;
 
 #[derive(FromRequest)]
 #[from_request(via(Json), rejection(ApiError))]

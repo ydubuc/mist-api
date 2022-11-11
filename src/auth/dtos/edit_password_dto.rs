@@ -1,10 +1,15 @@
 use serde::Deserialize;
 use validator::Validate;
 
-// TODO: regex for password
-// static RE_TWO_CHARS: Regex = Regex::new(r"[a-z]{2}$").unwrap();
-
 #[derive(Debug, Deserialize, Validate)]
 pub struct EditPasswordDto {
+    #[validate(
+        length(
+            min = 8,
+            max = 512,
+            message = "password must be between at least 8 characters."
+        ),
+        custom = "super::validate_password"
+    )]
     pub password: String,
 }

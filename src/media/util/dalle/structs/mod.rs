@@ -1,0 +1,1 @@
+pub mod dalle_generate_image_response;

@@ -7,7 +7,7 @@ use axum::{
 use validator::Validate;
 
 use crate::{
-    app::models::{api_error::ApiError, json_from_request::JsonFromRequest},
+    app::{models::api_error::ApiError, structs::json_from_request::JsonFromRequest},
     auth::jwt::models::claims::Claims,
     generate_media_requests::models::generate_media_request::GenerateMediaRequest,
     AppState,

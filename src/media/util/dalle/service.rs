@@ -21,8 +21,9 @@ use crate::{
     AppState,
 };
 
-use super::models::{
-    dalle_generate_image_response::DalleGenerateImageResponse, input_spec::InputSpec,
+use super::{
+    models::input_spec::InputSpec,
+    structs::dalle_generate_image_response::DalleGenerateImageResponse,
 };
 
 pub fn spawn_generate_media_task(

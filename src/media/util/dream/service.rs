@@ -26,7 +26,7 @@ use crate::{
     AppState,
 };
 
-use super::models::{dream_task_response::DreamTaskResponse, input_spec::InputSpec};
+use super::{models::input_spec::InputSpec, structs::dream_task_response::DreamTaskResponse};
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,

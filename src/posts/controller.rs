@@ -7,7 +7,7 @@ use axum::{
 use validator::Validate;
 
 use crate::{
-    app::models::{api_error::ApiError, json_from_request::JsonFromRequest},
+    app::{models::api_error::ApiError, structs::json_from_request::JsonFromRequest},
     auth::jwt::models::claims::Claims,
     AppState,
 };
@@ -20,6 +20,29 @@ use super::{
     models::post::Post,
     service,
 };
+
+// pub async fn create_post(
+//     State(state): State<AppState>,
+//     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+//     ValidatedForm(dto): ValidatedForm<CreatePostDto>,
+// ) -> Result<Json<Post>, ApiError> {
+//     match Claims::from_header(authorization, &state.envy.jwt_secret) {
+//         Ok(claims) => {
+//             // if let Err(e) = dto.validate() {
+//             //     return Err(ApiError {
+//             //         code: StatusCode::BAD_REQUEST,
+//             //         message: e.to_string(),
+//             //     });
+//             // }
+
+//             match service::create_post(&dto, &claims, &state.pool).await {
+//                 Ok(post) => Ok(Json(post)),
+//                 Err(e) => Err(e),
+//             }
+//         }
+//         Err(e) => Err(e),
+//     }
+// }
 
 pub async fn create_post(
     State(state): State<AppState>,

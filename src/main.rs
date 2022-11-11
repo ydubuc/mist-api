@@ -3,6 +3,9 @@
 
 use std::{env, net::SocketAddr};
 
+#[macro_use]
+extern crate lazy_static;
+
 use axum::{
     routing::{delete, get, patch, post},
     Router,

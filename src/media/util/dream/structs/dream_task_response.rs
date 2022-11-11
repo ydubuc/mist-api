@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::input_spec::InputSpec;
+use crate::media::util::dream::models::input_spec::InputSpec;
 
 #[derive(Debug, Deserialize)]
 pub struct DreamTaskResponse {

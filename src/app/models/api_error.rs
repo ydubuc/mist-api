@@ -15,6 +15,7 @@ impl From<JsonRejection> for ApiError {
             JsonRejection::MissingJsonContentType(_) => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
+
         Self {
             code,
             message: rejection.to_string(),

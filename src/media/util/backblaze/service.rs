@@ -10,7 +10,7 @@ use crate::{
     media::util::backblaze::enums::backblaze_delete_file_error_code::BackBlazeDeleteFileErrorCode,
 };
 
-use super::models::{
+use super::structs::{
     backblaze_delete_file_error::BackblazeDeleteFileError,
     backblaze_delete_file_response::BackblazeDeleteFileResponse,
     backblaze_upload_file_response::BackblazeUploadFileResponse,

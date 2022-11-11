@@ -8,7 +8,7 @@ use crate::{
     auth::jwt::models::claims::Claims,
     media::{
         enums::media_source::MediaSource,
-        util::backblaze::models::backblaze_upload_file_response::BackblazeUploadFileResponse,
+        util::backblaze::structs::backblaze_upload_file_response::BackblazeUploadFileResponse,
     },
 };
 

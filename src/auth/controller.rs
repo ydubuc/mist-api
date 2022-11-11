@@ -7,7 +7,7 @@ use axum::{
 use validator::Validate;
 
 use crate::{
-    app::models::{api_error::ApiError, json_from_request::JsonFromRequest},
+    app::{models::api_error::ApiError, structs::json_from_request::JsonFromRequest},
     devices::{
         dtos::{
             get_devices_filter_dto::GetDevicesFilterDto, logout_device_dto::LogoutDeviceDto,
