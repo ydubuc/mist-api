@@ -152,14 +152,20 @@ pub async fn refresh(
 
 pub async fn logout(
     State(state): State<AppState>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<LogoutDeviceDto>,
 ) -> Result<(), ApiError> {
-    if let Err(e) = dto.validate() {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: e.to_string(),
-        });
-    }
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
 
-    service::logout(&dto, &state.pool).await
+            service::logout(&dto, &claims, &state.pool).await
+        }
+        Err(e) => Err(e),
+    }
 }

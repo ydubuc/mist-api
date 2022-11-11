@@ -19,7 +19,7 @@ use crate::{
 use super::{
     dtos::{
         edit_device_dto::EditDeviceDto, get_devices_filter_dto::GetDevicesFilterDto,
-        logout_device_dto::LogoutDeviceDto, refresh_device_dto::RefreshDeviceDto,
+        refresh_device_dto::RefreshDeviceDto,
     },
     errors::DevicesApiError,
     models::device::Device,
@@ -230,24 +230,30 @@ pub async fn edit_device_by_id(
     }
 }
 
-pub async fn logout_device_as_admin(dto: &LogoutDeviceDto, pool: &PgPool) -> Result<(), ApiError> {
-    let sqlx_result = sqlx::query(
-        "
-        DELETE FROM devices
-        WHERE id = $1 AND user_id = $2 AND refresh_token = $3
-        ",
-    )
-    .bind(&dto.device_id)
-    .bind(&dto.user_id)
-    .bind(&dto.refresh_token)
-    .execute(pool)
-    .await;
+pub async fn logout_devices_with_ids(
+    ids: &Vec<String>,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let mut sql = "DELETE FROM devices WHERE id IN (".to_string();
 
-    match sqlx_result {
-        Ok(result) => match result.rows_affected() > 0 {
-            true => Ok(()),
-            false => Err(DevicesApiError::DeviceNotFound.value()),
-        },
+    for i in 0..ids.len() {
+        if i != ids.len() - 1 {
+            sql.push_str(&["'", &ids[i], "', "].concat());
+        } else {
+            sql.push_str(&["'", &ids[i], "'"].concat());
+        }
+    }
+
+    sql.push_str(")");
+    sql.push_str(" AND user_id = $1");
+
+    println!("{}", sql);
+
+    let sqlx = sqlx::query(&sql).bind(&claims.id);
+
+    match sqlx.execute(pool).await {
+        Ok(_) => Ok(()),
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
@@ -263,9 +269,9 @@ pub async fn delete_devices_with_messaging_tokens_as_admin(
 
     for i in 0..messaging_tokens.len() {
         if i != messaging_tokens.len() - 1 {
-            sql.push_str(&[&messaging_tokens[i], ", "].concat());
+            sql.push_str(&["'", &messaging_tokens[i], "', "].concat());
         } else {
-            sql.push_str(&messaging_tokens[i]);
+            sql.push_str(&["'", &messaging_tokens[i], "'"].concat());
         }
     }
 

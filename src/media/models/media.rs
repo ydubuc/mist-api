@@ -5,9 +5,9 @@ use sqlx::FromRow;
 
 use crate::{
     app::util::{multipart::models::file_properties::FileProperties, time},
-    auth::jwt::models::claims::{self, Claims},
+    auth::jwt::models::claims::Claims,
     media::{
-        dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
+        enums::media_source::MediaSource,
         util::backblaze::models::backblaze_upload_file_response::BackblazeUploadFileResponse,
     },
 };

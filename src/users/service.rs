@@ -249,8 +249,28 @@ pub async fn edit_user_by_id(
             None => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            tracing::error!(%e);
-            Err(DefaultApiError::InternalServerError.value())
+            let Some(db_err) = e.as_database_error()
+            else {
+                tracing::error!(%e);
+                return Err(DefaultApiError::InternalServerError.value());
+            };
+
+            let Some(code) = get_code_from_db_err(db_err)
+            else {
+                tracing::error!(%e);
+                return Err(DefaultApiError::InternalServerError.value());
+            };
+
+            match code.as_str() {
+                SqlStateCodes::UNIQUE_VIOLATION => Err(ApiError {
+                    code: StatusCode::CONFLICT,
+                    message: "User already exists.".to_string(),
+                }),
+                _ => {
+                    tracing::error!(%e);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
+            }
         }
     }
 }

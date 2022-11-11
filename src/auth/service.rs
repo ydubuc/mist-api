@@ -211,8 +211,8 @@ pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessI
     }
 }
 
-pub async fn logout(dto: &LogoutDeviceDto, pool: &PgPool) -> Result<(), ApiError> {
-    match devices::service::logout_device_as_admin(dto, pool).await {
+pub async fn logout(dto: &LogoutDeviceDto, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
+    match devices::service::logout_devices_with_ids(&dto.device_ids, claims, pool).await {
         Ok(_) => Ok(()),
         Err(e) => Err(e),
     }

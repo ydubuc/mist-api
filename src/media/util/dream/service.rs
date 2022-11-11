@@ -26,10 +26,7 @@ use crate::{
     AppState,
 };
 
-use super::models::{
-    dream_task_response::{self, DreamTaskResponse},
-    input_spec::InputSpec,
-};
+use super::models::{dream_task_response::DreamTaskResponse, input_spec::InputSpec};
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
@@ -247,7 +244,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
     Ok(InputSpec {
         style: 3, // TODO: add style to dto
         prompt: dto.prompt.to_string(),
-        target_image_weight: Some(0.1), // TODO: add image weight to dto
+        target_image_weight: Some(150.0), // TODO: add image weight to dto
         width: Some(dto.width),
         height: Some(dto.height),
     })

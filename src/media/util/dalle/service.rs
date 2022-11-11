@@ -1,5 +1,5 @@
-use serde_json::json;
-use tracing::Level;
+use axum::http::StatusCode;
+use reqwest::header;
 use uuid::Uuid;
 
 extern crate reqwest;
@@ -20,7 +20,6 @@ use crate::{
     },
     AppState,
 };
-use reqwest::{header, StatusCode};
 
 use super::models::{
     dalle_generate_image_response::DalleGenerateImageResponse, input_spec::InputSpec,

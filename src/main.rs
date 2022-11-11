@@ -36,10 +36,7 @@ async fn main() {
 
     // environment
     let app_env = env::var("APP_ENV").unwrap_or("development".to_string());
-    if let Err(e) = dotenvy::from_filename(format!(".env.{}", app_env)) {
-        tracing::error!(%e);
-    }
-
+    let _ = dotenvy::from_filename(format!(".env.{}", app_env));
     let envy = match envy::from_env::<Envy>() {
         Ok(config) => config,
         Err(e) => panic!("{:#?}", e),

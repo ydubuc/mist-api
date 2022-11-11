@@ -1,16 +1,11 @@
 use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
-use imagesize::ImageSize;
 use sqlx::PgPool;
 
 use crate::{
     app::{
-        errors::DefaultApiError,
-        models::api_error::ApiError,
-        util::{
-            multipart::{models::file_properties::FileProperties, multipart::get_files_properties},
-            time,
-        },
+        errors::DefaultApiError, models::api_error::ApiError,
+        util::multipart::multipart::get_files_properties,
     },
     auth::jwt::models::claims::Claims,
     devices,
@@ -26,10 +21,7 @@ use super::{
     enums::{media_generator::MediaGenerator, media_source::MediaSource},
     errors::MediaApiError,
     models::media::Media,
-    util::{
-        backblaze::{self, models::backblaze_upload_file_response::BackblazeUploadFileResponse},
-        dalle, dream,
-    },
+    util::{backblaze, dalle, dream},
 };
 
 pub async fn generate_media(

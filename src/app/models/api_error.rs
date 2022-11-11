@@ -25,6 +25,7 @@ impl From<JsonRejection> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let payload = json!({
+            "code": self.code.as_u16(),
             "message": self.message,
         });
 
