@@ -22,7 +22,9 @@ use crate::{
 };
 use reqwest::{header, StatusCode};
 
-use super::models::dalle_generate_image_response::DalleGenerateImageResponse;
+use super::models::{
+    dalle_generate_image_response::DalleGenerateImageResponse, input_spec::InputSpec,
+};
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
@@ -60,53 +62,50 @@ async fn generate_media(
     claims: &Claims,
     state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
-    match dalle_generate_image(dto, &state.envy.openai_api_key).await {
-        Ok(dalle_response) => {
-            let mut files_properties = Vec::new();
+    let dalle_generate_images_result = dalle_generate_images(dto, &state.envy.openai_api_key).await;
+    let Ok(dalle_response) = dalle_generate_images_result
+    else {
+        return Err(dalle_generate_images_result.unwrap_err());
+    };
 
-            for data in &dalle_response.data {
-                match app::util::reqwest::get_bytes(&data.url).await {
-                    Ok(bytes) => {
-                        let uuid = Uuid::new_v4().to_string();
-                        let file_properties = FileProperties {
-                            id: uuid.to_string(),
-                            field_name: uuid.to_string(),
-                            file_name: uuid.to_string(),
-                            mime_type: mime::IMAGE_PNG,
-                            data: bytes,
-                        };
+    let mut files_properties = Vec::new();
 
-                        files_properties.push(file_properties);
-                    }
-                    Err(_) => {
-                        // failed to get bytes
-                        // skip to next data
-                    }
-                }
+    for data in &dalle_response.data {
+        match app::util::reqwest::get_bytes(&data.url).await {
+            Ok(bytes) => {
+                let uuid = Uuid::new_v4().to_string();
+                let file_properties = FileProperties {
+                    id: uuid.to_string(),
+                    field_name: uuid.to_string(),
+                    file_name: uuid.to_string(),
+                    mime_type: mime::IMAGE_PNG,
+                    data: bytes,
+                };
+
+                files_properties.push(file_properties);
+            }
+            Err(_) => {
+                // failed to get bytes
+                // skip to next data
+            }
+        }
+    }
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
+        Ok(responses) => {
+            let media =
+                Media::from_backblaze_responses(responses, MediaSource::Dalle, claims, &state.b2);
+
+            if media.len() == 0 {
+                return Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to upload files.".to_string(),
+                });
             }
 
-            let sub_folder = Some(["media/", &claims.id].concat());
-            match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
-                Ok(responses) => {
-                    let media = media::service::create_media_from_responses(
-                        responses,
-                        MediaSource::Dalle,
-                        claims,
-                        &state.b2,
-                    );
-
-                    if media.len() == 0 {
-                        return Err(ApiError {
-                            code: StatusCode::INTERNAL_SERVER_ERROR,
-                            message: "Failed to upload files.".to_string(),
-                        });
-                    }
-
-                    match media::service::upload_media(media, &state.pool).await {
-                        Ok(m) => Ok(m),
-                        Err(e) => Err(e),
-                    }
-                }
+            match media::service::upload_media(media, &state.pool).await {
+                Ok(m) => Ok(m),
                 Err(e) => Err(e),
             }
         }
@@ -114,10 +113,52 @@ async fn generate_media(
     }
 }
 
-async fn dalle_generate_image(
+async fn dalle_generate_images(
     dto: &GenerateMediaDto,
     openai_api_key: &str,
 ) -> Result<DalleGenerateImageResponse, ApiError> {
+    let input_spec = match provide_input_spec(dto) {
+        Ok(input_spec) => input_spec,
+        Err(e) => return Err(e),
+    };
+
+    let mut headers = header::HeaderMap::new();
+    headers.insert("Content-Type", "application/json".parse().unwrap());
+    headers.insert(
+        "Authorization",
+        ["Bearer ", openai_api_key].concat().parse().unwrap(),
+    );
+
+    let client = reqwest::Client::new();
+    let result = client
+        .post("https://api.openai.com/v1/images/generations")
+        .headers(headers)
+        .json(&input_spec)
+        .send()
+        .await;
+
+    match result {
+        Ok(res) => match res.text().await {
+            Ok(text) => match serde_json::from_str(&text) {
+                Ok(dalle_response) => Ok(dalle_response),
+                Err(_) => {
+                    tracing::error!(%text);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
+            },
+            Err(e) => {
+                tracing::error!(%e);
+                Err(DefaultApiError::InternalServerError.value())
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
     let size = [
         dto.width.to_string(),
         "x".to_string(),
@@ -138,46 +179,10 @@ async fn dalle_generate_image(
         });
     }
 
-    let mut headers = header::HeaderMap::new();
-    headers.insert("Content-Type", "application/json".parse().unwrap());
-    headers.insert(
-        "Authorization",
-        ["Bearer ", openai_api_key].concat().parse().unwrap(),
-    );
-
-    let client = reqwest::Client::new();
-    let result = client
-        .post("https://api.openai.com/v1/images/generations")
-        .headers(headers)
-        .body(
-            json!({
-                "prompt": dto.prompt,
-                "n": dto.number,
-                "size": size,
-                "response_format": "url"
-            })
-            .to_string(),
-        )
-        .send()
-        .await;
-
-    match result {
-        Ok(res) => match res.text().await {
-            Ok(text) => match serde_json::from_str(&text) {
-                Ok(dalle_response) => Ok(dalle_response),
-                Err(_) => {
-                    tracing::event!(Level::ERROR, %text);
-                    Err(DefaultApiError::InternalServerError.value())
-                }
-            },
-            Err(e) => {
-                tracing::event!(Level::ERROR, %e);
-                Err(DefaultApiError::InternalServerError.value())
-            }
-        },
-        Err(e) => {
-            tracing::event!(Level::ERROR, %e);
-            Err(DefaultApiError::InternalServerError.value())
-        }
-    }
+    Ok(InputSpec {
+        prompt: dto.prompt.to_string(),
+        n: dto.number,
+        size,
+        response_format: "url".to_string(),
+    })
 }

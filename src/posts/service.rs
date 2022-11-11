@@ -157,6 +157,25 @@ pub async fn get_posts(
 }
 
 pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
+    // let sqlx_result = sqlx::query_as!(
+    //     Post,
+    //     r#"
+    //     SELECT posts.*, users.* FROM posts
+    //     INNER JOIN users ON posts.user_id = users.id
+    //     "#
+    // )
+    // .fetch_optional(pool)
+    // .await;
+
+    // let sqlx_result = sqlx::query_as::<_, Post>(
+    //     "
+    //     SELECT posts.*, users.* FROM posts
+    //     INNER JOIN users ON posts.user_id = users.id
+    //     ",
+    // )
+    // .fetch_optional(pool)
+    // .await;
+
     let sqlx_result = sqlx::query_as::<_, Post>(
         "
         SELECT * FROM posts

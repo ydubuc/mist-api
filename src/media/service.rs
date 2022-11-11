@@ -28,7 +28,7 @@ use super::{
     models::media::Media,
     util::{
         backblaze::{self, models::backblaze_upload_file_response::BackblazeUploadFileResponse},
-        dalle,
+        dalle, dream,
     },
 };
 
@@ -48,6 +48,26 @@ pub async fn generate_media(
             {
                 Ok(generate_media_request) => {
                     dalle::service::spawn_generate_media_task(
+                        generate_media_request.clone(),
+                        claims.clone(),
+                        state.clone(),
+                    );
+
+                    Ok(generate_media_request)
+                }
+                Err(e) => Err(e),
+            }
+        }
+        MediaGenerator::DREAM => {
+            match generate_media_requests::service::create_generate_media_request(
+                dto,
+                claims,
+                &state.pool,
+            )
+            .await
+            {
+                Ok(generate_media_request) => {
+                    dream::service::spawn_generate_media_task(
                         generate_media_request.clone(),
                         claims.clone(),
                         state.clone(),
@@ -82,11 +102,24 @@ pub async fn on_generate_media_completion(
         return Err(e);
     }
 
+    let Some(media) = media
+    else {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "No media generated.".to_string()
+        });
+    };
+
+    if media.len() < 1 {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "No media generated.".to_string(),
+        });
+    }
+
     if status.value() != GenerateMediaRequestStatus::Completed.value() {
         return Ok(());
     }
-
-    let Some(media) = media else { return Ok(()); };
 
     devices::service::send_notifications_to_devices_with_user_id(
         "Mist",
@@ -147,7 +180,7 @@ pub async fn import_media(
     match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
             let media =
-                create_media_from_responses(responses, MediaSource::Import, claims, &state.b2);
+                Media::from_backblaze_responses(responses, MediaSource::Import, claims, &state.b2);
 
             if media.len() == 0 {
                 return Err(ApiError {
@@ -160,48 +193,6 @@ pub async fn import_media(
         }
         Err(e) => Err(e),
     }
-}
-
-pub fn create_media_from_responses(
-    responses: Vec<(FileProperties, BackblazeUploadFileResponse)>,
-    source: MediaSource,
-    claims: &Claims,
-    b2: &B2,
-) -> Vec<Media> {
-    let mut vec = Vec::new();
-
-    for res in responses {
-        let download_url = [
-            &b2.downloadUrl,
-            "/b2api/v1/b2_download_file_by_id?fileId=",
-            &res.1.file_id,
-        ]
-        .concat();
-
-        let size = match imagesize::blob_size(&res.0.data) {
-            Ok(size) => size,
-            Err(e) => ImageSize {
-                width: 512,
-                height: 512,
-            },
-        };
-
-        let media = Media {
-            id: res.0.id.to_string(),
-            user_id: claims.id.to_string(),
-            file_id: res.1.file_id.to_string(),
-            url: download_url,
-            width: size.width as i16,
-            height: size.height as i16,
-            mime_type: res.0.mime_type.to_string(),
-            source: source.value(),
-            created_at: time::current_time_in_secs() as i64,
-        };
-
-        vec.push(media);
-    }
-
-    return vec;
 }
 
 pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
