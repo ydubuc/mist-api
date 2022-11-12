@@ -76,8 +76,9 @@ pub async fn request_email_update_mail(
 
 pub async fn process_email_edit(
     State(state): State<AppState>,
-    Path(access_token): Path<String>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
+    let access_token = authorization.0.token();
     service::process_email_edit(&access_token, &state).await
 }
 
@@ -97,7 +98,7 @@ pub async fn request_password_update_mail(
 
 pub async fn process_password_edit(
     State(state): State<AppState>,
-    Path(access_token): Path<String>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditPasswordDto>,
 ) -> Result<(), ApiError> {
     if let Err(e) = dto.validate() {
@@ -107,6 +108,7 @@ pub async fn process_password_edit(
         });
     }
 
+    let access_token = authorization.0.token();
     service::process_password_edit(&access_token, &dto, &state).await
 }
 

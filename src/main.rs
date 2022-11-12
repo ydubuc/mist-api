@@ -7,6 +7,8 @@ use std::{env, net::SocketAddr};
 extern crate lazy_static;
 
 use axum::{
+    http::Method,
+    http::header::{CONTENT_TYPE, AUTHORIZATION},
     routing::{delete, get, patch, post},
     Router,
 };
@@ -47,7 +49,11 @@ async fn main() {
 
     // properties
     let port = envy.port.to_owned();
-    let cors = CorsLayer::new().allow_origin(Any);
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_headers([CONTENT_TYPE, AUTHORIZATION])
+        .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
+    // let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
 
     let database_url = envy.database_url.to_string();
     let pool = PgPoolOptions::new()
@@ -80,7 +86,7 @@ async fn main() {
             post(auth::controller::request_email_update_mail),
         )
         .route(
-            "/auth/email/:access-token",
+            "/auth/email",
             patch(auth::controller::process_email_edit),
         )
         .route(
@@ -88,7 +94,7 @@ async fn main() {
             post(auth::controller::request_password_update_mail),
         )
         .route(
-            "/auth/password/:access-token",
+            "/auth/password",
             patch(auth::controller::process_password_edit),
         )
         .route("/auth/refresh", post(auth::controller::refresh))
