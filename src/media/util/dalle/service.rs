@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use reqwest::header;
+use reqwest::{header, Response};
 use uuid::Uuid;
 
 extern crate reqwest;
@@ -138,19 +138,7 @@ async fn dalle_generate_images(
         .await;
 
     match result {
-        Ok(res) => match res.text().await {
-            Ok(text) => match serde_json::from_str(&text) {
-                Ok(dalle_response) => Ok(dalle_response),
-                Err(_) => {
-                    tracing::error!(%text);
-                    Err(DefaultApiError::InternalServerError.value())
-                }
-            },
-            Err(e) => {
-                tracing::error!(%e);
-                Err(DefaultApiError::InternalServerError.value())
-            }
-        },
+        Ok(res) => parse_response_to_dalle_generate_image_response(res).await,
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
@@ -159,12 +147,7 @@ async fn dalle_generate_images(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
-    let size = [
-        dto.width.to_string(),
-        "x".to_string(),
-        dto.height.to_string(),
-    ]
-    .concat();
+    let size = format!("{}x{}", dto.width, dto.height);
 
     let valid_sizes = [
         "256x256".to_string(),
@@ -185,4 +168,22 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
         size,
         response_format: "url".to_string(),
     })
+}
+
+async fn parse_response_to_dalle_generate_image_response(
+    res: Response,
+) -> Result<DalleGenerateImageResponse, ApiError> {
+    match res.text().await {
+        Ok(text) => match serde_json::from_str(&text) {
+            Ok(dalle_generate_image_response) => Ok(dalle_generate_image_response),
+            Err(_) => {
+                tracing::error!(%text);
+                Err(DefaultApiError::InternalServerError.value())
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
 }

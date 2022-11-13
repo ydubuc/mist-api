@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     headers::{authorization::Bearer, Authorization},
     http::StatusCode,
     Json, TypedHeader,

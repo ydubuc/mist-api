@@ -66,6 +66,129 @@ async fn generate_media(
 ) -> Result<Vec<Media>, ApiError> {
     let dream_api_key = &state.envy.dream_api_key;
 
+    // let create_task_result = create_task(dream_api_key).await;
+    // let Ok(create_task_response) = create_task_result
+    // else {
+    //     return Err(create_task_result.unwrap_err());
+    // };
+
+    // let update_task_result = update_task_by_id(&create_task_response.id, dto, dream_api_key).await;
+    // let Ok(update_task_response) = update_task_result
+    // else {
+    //     return Err(update_task_result.unwrap_err())
+    // };
+
+    // let mut task = update_task_response;
+    // let mut encountered_error = false;
+
+    // while (task.state == DreamTaskState::GENERATING || task.state == DreamTaskState::PENDING)
+    //     && !encountered_error
+    // {
+    //     sleep(Duration::from_millis(5000)).await;
+
+    //     let Ok(task_response) = get_task_by_id(&task.id, dream_api_key).await
+    //     else {
+    //         tracing::error!("Failed to get task by id while awaiting dream task.");
+    //         encountered_error = true;
+    //         continue;
+    //     };
+
+    //     task = task_response;
+    // }
+
+    // if task.state != DreamTaskState::COMPLETED || encountered_error {
+    //     tracing::error!("Dream task finished with error: {:?}", task);
+    //     return Err(DefaultApiError::InternalServerError.value());
+    // }
+
+    // let Some(url) = task.result
+    // else {
+    //     tracing::error!("{:?}", task);
+    //     return Err(ApiError {
+    //         code: StatusCode::INTERNAL_SERVER_ERROR,
+    //         message: "Dream task has no url.".to_string()
+    //     });
+    // };
+
+    let dream_responses = await_tasks(dto, claims, state).await;
+    println!("finished awaiting tasks");
+
+    let mut files_properties = Vec::new();
+    let mut failures = Vec::new();
+
+    for response in &dream_responses {
+        let Ok(res) = response
+        else {
+            failures.push(response);
+            continue;
+        };
+        let Some(url) = &res.result
+        else {
+            failures.push(response);
+            continue;
+        };
+
+        match app::util::reqwest::get_bytes(&url).await {
+            Ok(bytes) => {
+                let uuid = Uuid::new_v4().to_string();
+                let file_properties = FileProperties {
+                    id: uuid.to_string(),
+                    field_name: uuid.to_string(),
+                    file_name: uuid.to_string(),
+                    mime_type: mime::IMAGE_JPEG,
+                    data: bytes,
+                };
+
+                files_properties.push(file_properties);
+            }
+            Err(_) => {
+                // failed to get bytes
+                // skip to next data
+            }
+        }
+    }
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
+        Ok(responses) => {
+            let media =
+                Media::from_backblaze_responses(responses, MediaSource::Dream, claims, &state.b2);
+
+            if media.len() == 0 {
+                return Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to upload files.".to_string(),
+                });
+            }
+
+            match media::service::upload_media(media, &state.pool).await {
+                Ok(m) => Ok(m),
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn await_tasks(
+    dto: &GenerateMediaDto,
+    claims: &Claims,
+    state: &AppState,
+) -> Vec<Result<DreamTaskResponse, ApiError>> {
+    let mut futures = Vec::new();
+
+    for _ in 0..dto.number {
+        println!("awaiting new task");
+        futures.push(await_task_completion(&dto, &state.envy.dream_api_key));
+    }
+
+    futures::future::join_all(futures).await
+}
+
+async fn await_task_completion(
+    dto: &GenerateMediaDto,
+    dream_api_key: &str,
+) -> Result<DreamTaskResponse, ApiError> {
     let create_task_result = create_task(dream_api_key).await;
     let Ok(create_task_response) = create_task_result
     else {
@@ -101,56 +224,9 @@ async fn generate_media(
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let Some(url) = task.result
-    else {
-        tracing::error!("{:?}", task);
-        return Err(ApiError {
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Dream task has no url.".to_string()
-        });
-    };
+    println!("finished task");
 
-    let mut files_properties = Vec::new();
-
-    match app::util::reqwest::get_bytes(&url).await {
-        Ok(bytes) => {
-            let uuid = Uuid::new_v4().to_string();
-            let file_properties = FileProperties {
-                id: uuid.to_string(),
-                field_name: uuid.to_string(),
-                file_name: uuid.to_string(),
-                mime_type: mime::IMAGE_JPEG,
-                data: bytes,
-            };
-
-            files_properties.push(file_properties);
-        }
-        Err(_) => {
-            // failed to get bytes
-            // skip to next data
-        }
-    }
-
-    let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
-        Ok(responses) => {
-            let media =
-                Media::from_backblaze_responses(responses, MediaSource::Dream, claims, &state.b2);
-
-            if media.len() == 0 {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Failed to upload files.".to_string(),
-                });
-            }
-
-            match media::service::upload_media(media, &state.pool).await {
-                Ok(m) => Ok(m),
-                Err(e) => Err(e),
-            }
-        }
-        Err(e) => Err(e),
-    }
+    Ok(task)
 }
 
 async fn create_task(dream_api_key: &str) -> Result<DreamTaskResponse, ApiError> {
@@ -240,11 +316,33 @@ async fn update_task_by_id(
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
     // TODO: add size validation?
+    let size = (dto.width, dto.height);
+
+    let valid_sizes = [
+        (512, 512),
+        (512, 1024),
+        (1024, 512),
+        (682, 1024),
+        (1024, 682),
+    ];
+
+    if !valid_sizes.contains(&size) {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: [
+                "Size must be one of: ",
+                &valid_sizes
+                    .map(|val| format!("{}x{}", val.0, val.1))
+                    .join(", "),
+            ]
+            .concat(),
+        });
+    }
 
     Ok(InputSpec {
         style: 3, // TODO: add style to dto
         prompt: dto.prompt.to_string(),
-        target_image_weight: Some(150.0), // TODO: add image weight to dto
+        target_image_weight: None, // TODO: add image weight to dto
         width: Some(dto.width),
         height: Some(dto.height),
     })
