@@ -13,12 +13,14 @@ pub struct EditUserDto {
         max = 24,
         message = "username must be between 3 and 24 characters."
     ))]
+    #[validate(regex(path = "crate::auth::dtos::USERNAME_REGEX"))]
     pub username: Option<String>,
     #[validate(length(
         min = 3,
         max = 24,
         message = "displayname must be between 3 and 24 characters."
     ))]
+    #[validate(regex(path = "super::DISPLAYNAME_REGEX"))]
     pub displayname: Option<String>,
     #[validate(length(equal = 36, message = "avatar_media_id must be 36 characters."))]
     pub avatar_media_id: Option<String>,
