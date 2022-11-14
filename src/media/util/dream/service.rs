@@ -26,7 +26,9 @@ use crate::{
     AppState,
 };
 
-use super::{models::input_spec::InputSpec, structs::dream_task_response::DreamTaskResponse};
+use super::{
+    config::API_URL, models::input_spec::InputSpec, structs::dream_task_response::DreamTaskResponse,
+};
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
@@ -189,8 +191,9 @@ async fn create_task(dream_api_key: &str) -> Result<DreamTaskResponse, ApiError>
     );
 
     let client = reqwest::Client::new();
+    let url = format!("{}/tasks", API_URL);
     let result = client
-        .post("https://api.luan.tools/api/tasks/")
+        .post(url)
         .headers(headers)
         .json(&json!({
             "use_target_image": false,
@@ -216,11 +219,8 @@ async fn get_task_by_id(id: &str, dream_api_key: &str) -> Result<DreamTaskRespon
     );
 
     let client = reqwest::Client::new();
-    let result = client
-        .get(format!("https://api.luan.tools/api/tasks/{}", id))
-        .headers(headers)
-        .send()
-        .await;
+    let url = format!("{}/tasks/{}", API_URL, id);
+    let result = client.get(url).headers(headers).send().await;
 
     match result {
         Ok(res) => parse_response_to_dream_task_response(res).await,

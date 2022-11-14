@@ -23,6 +23,7 @@ use crate::{
 };
 
 use super::{
+    config::API_URL,
     models::input_spec::{InputSpec, InputSpecParams},
     structs::{
         stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
@@ -215,8 +216,9 @@ async fn generate_async(
     headers.insert("apiKey", stable_horde_api_key.parse().unwrap());
 
     let client = reqwest::Client::new();
+    let url = format!("{}/generate/async", API_URL);
     let result = client
-        .post("https://stablehorde.net/api/v2/generate/async")
+        .post(url)
         .headers(headers)
         .json(&input_spec)
         .send()
@@ -255,15 +257,9 @@ async fn get_request_by_id(
     headers.insert("apikey", stable_horde_api_key.parse().unwrap());
 
     let client = reqwest::Client::new();
-    let result = client
-        .get(format!(
-            "https://stablehorde.net/api/v2/generate/{}/{}",
-            if check_only { "check" } else { "status" },
-            id
-        ))
-        .headers(headers)
-        .send()
-        .await;
+    let check_param = if check_only { "check" } else { "status" };
+    let url = format!("{}/generate/{}/{}", API_URL, check_param, id);
+    let result = client.get(url).headers(headers).send().await;
 
     match result {
         Ok(res) => match res.text().await {

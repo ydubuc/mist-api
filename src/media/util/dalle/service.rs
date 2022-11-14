@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    models::input_spec::InputSpec,
+    config::API_URL, models::input_spec::InputSpec,
     structs::dalle_generate_image_response::DalleGenerateImageResponse,
 };
 
@@ -128,8 +128,9 @@ async fn dalle_generate_images(
     );
 
     let client = reqwest::Client::new();
+    let url = format!("{}/images/generations", API_URL);
     let result = client
-        .post("https://api.openai.com/v1/images/generations")
+        .post(url)
         .headers(headers)
         .json(&input_spec)
         .send()
