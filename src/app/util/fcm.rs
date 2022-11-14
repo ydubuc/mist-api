@@ -9,6 +9,7 @@ pub async fn send_notification(
     let mut builder = fcm::NotificationBuilder::new();
     builder.title(&title);
     builder.body(&body);
+    // builder.sound("default");
 
     let notification = builder.finalize();
 

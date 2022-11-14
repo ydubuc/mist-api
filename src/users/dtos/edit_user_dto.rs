@@ -24,6 +24,7 @@ pub struct EditUserDto {
     pub displayname: Option<String>,
     #[validate(length(equal = 36, message = "avatar_media_id must be 36 characters."))]
     pub avatar_media_id: Option<String>,
+    pub nullify: Option<Vec<String>>,
 }
 
 impl EditUserDto {
@@ -48,6 +49,11 @@ impl EditUserDto {
         if self.avatar_media_id.is_some() {
             clauses.push(["avatar_url = $", &index.to_string()].concat());
             index += 1;
+        }
+        if let Some(nullable_fields) = &self.nullify {
+            for nullable_field in nullable_fields {
+                clauses.push([&nullable_field, " = NULL"].concat());
+            }
         }
 
         // CLAUSES BUILDER

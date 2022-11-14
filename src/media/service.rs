@@ -21,7 +21,7 @@ use super::{
     enums::{media_generator::MediaGenerator, media_source::MediaSource},
     errors::MediaApiError,
     models::media::Media,
-    util::{backblaze, dalle, dream},
+    util::{backblaze, dalle, dream, stable_horde},
 };
 
 pub async fn generate_media(
@@ -70,6 +70,28 @@ pub async fn generate_media(
                 Err(e) => Err(e),
             }
         }
+
+        MediaGenerator::STABLE_HORDE => {
+            match generate_media_requests::service::create_generate_media_request(
+                dto,
+                claims,
+                &state.pool,
+            )
+            .await
+            {
+                Ok(generate_media_request) => {
+                    stable_horde::service::spawn_generate_media_task(
+                        generate_media_request.clone(),
+                        claims.clone(),
+                        state.clone(),
+                    );
+
+                    Ok(generate_media_request)
+                }
+                Err(e) => Err(e),
+            }
+        }
+
         _ => Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: "Media generator not supported.".to_string(),
@@ -149,7 +171,10 @@ pub async fn import_media(
     }
 
     for file_properties in &files_properties {
-        if file_properties.mime_type.type_() != mime::IMAGE {
+        if file_properties
+            .mime_type
+            .starts_with(&mime::IMAGE.to_string())
+        {
             return Err(ApiError {
                 code: StatusCode::BAD_REQUEST,
                 message: "Files must be of type image.".to_string(),

@@ -66,52 +66,7 @@ async fn generate_media(
 ) -> Result<Vec<Media>, ApiError> {
     let dream_api_key = &state.envy.dream_api_key;
 
-    // let create_task_result = create_task(dream_api_key).await;
-    // let Ok(create_task_response) = create_task_result
-    // else {
-    //     return Err(create_task_result.unwrap_err());
-    // };
-
-    // let update_task_result = update_task_by_id(&create_task_response.id, dto, dream_api_key).await;
-    // let Ok(update_task_response) = update_task_result
-    // else {
-    //     return Err(update_task_result.unwrap_err())
-    // };
-
-    // let mut task = update_task_response;
-    // let mut encountered_error = false;
-
-    // while (task.state == DreamTaskState::GENERATING || task.state == DreamTaskState::PENDING)
-    //     && !encountered_error
-    // {
-    //     sleep(Duration::from_millis(5000)).await;
-
-    //     let Ok(task_response) = get_task_by_id(&task.id, dream_api_key).await
-    //     else {
-    //         tracing::error!("Failed to get task by id while awaiting dream task.");
-    //         encountered_error = true;
-    //         continue;
-    //     };
-
-    //     task = task_response;
-    // }
-
-    // if task.state != DreamTaskState::COMPLETED || encountered_error {
-    //     tracing::error!("Dream task finished with error: {:?}", task);
-    //     return Err(DefaultApiError::InternalServerError.value());
-    // }
-
-    // let Some(url) = task.result
-    // else {
-    //     tracing::error!("{:?}", task);
-    //     return Err(ApiError {
-    //         code: StatusCode::INTERNAL_SERVER_ERROR,
-    //         message: "Dream task has no url.".to_string()
-    //     });
-    // };
-
-    let dream_responses = await_tasks(dto, claims, state).await;
-    println!("finished awaiting tasks");
+    let dream_responses = await_tasks(dto, state).await;
 
     let mut files_properties = Vec::new();
     let mut failures = Vec::new();
@@ -135,7 +90,7 @@ async fn generate_media(
                     id: uuid.to_string(),
                     field_name: uuid.to_string(),
                     file_name: uuid.to_string(),
-                    mime_type: mime::IMAGE_JPEG,
+                    mime_type: mime::IMAGE_JPEG.to_string(),
                     data: bytes,
                 };
 
@@ -172,13 +127,11 @@ async fn generate_media(
 
 pub async fn await_tasks(
     dto: &GenerateMediaDto,
-    claims: &Claims,
     state: &AppState,
 ) -> Vec<Result<DreamTaskResponse, ApiError>> {
     let mut futures = Vec::new();
 
     for _ in 0..dto.number {
-        println!("awaiting new task");
         futures.push(await_task_completion(&dto, &state.envy.dream_api_key));
     }
 
@@ -223,8 +176,6 @@ async fn await_task_completion(
         tracing::error!("Dream task finished with error: {:?}", task);
         return Err(DefaultApiError::InternalServerError.value());
     }
-
-    println!("finished task");
 
     Ok(task)
 }
@@ -315,15 +266,14 @@ async fn update_task_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
-    // TODO: add size validation?
     let size = (dto.width, dto.height);
 
     let valid_sizes = [
         (512, 512),
         (512, 1024),
         (1024, 512),
-        (682, 1024),
-        (1024, 682),
+        (640, 1024),
+        (1024, 640),
     ];
 
     if !valid_sizes.contains(&size) {

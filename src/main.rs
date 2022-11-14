@@ -1,22 +1,24 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, time::Duration};
 
 #[macro_use]
 extern crate lazy_static;
 
 use axum::{
+    error_handling::HandleErrorLayer,
+    http::header::{AUTHORIZATION, CONTENT_TYPE},
     http::Method,
-    http::header::{CONTENT_TYPE, AUTHORIZATION},
     routing::{delete, get, patch, post},
-    Router,
+    BoxError, Router,
 };
 use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::app::env::Envy;
+use crate::app::{env::Envy, errors::DefaultApiError};
 
 mod app;
 mod auth;
@@ -48,17 +50,20 @@ async fn main() {
     };
 
     // properties
-    let port = envy.port.to_owned();
+    let port = envy.port.to_owned().unwrap_or(3000);
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_headers([CONTENT_TYPE, AUTHORIZATION])
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
-    // let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
 
-    let database_url = envy.database_url.to_string();
+    // let cors = CorsLayer::new()
+    //     .allow_origin(Any)
+    //     .allow_methods(Any)
+    //     .allow_headers(Any);
+
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&database_url)
+        .connect(&envy.database_url)
         .await
         .expect("failed to connect to database");
 
@@ -85,10 +90,7 @@ async fn main() {
             "/auth/email",
             post(auth::controller::request_email_update_mail),
         )
-        .route(
-            "/auth/email",
-            patch(auth::controller::process_email_edit),
-        )
+        .route("/auth/email", patch(auth::controller::process_email_edit))
         .route(
             "/auth/password",
             post(auth::controller::request_password_update_mail),
@@ -129,9 +131,17 @@ async fn main() {
             get(generate_media_requests::controller::get_generate_media_requests),
         )
         // layers
-        .layer(cors);
+        .layer(cors)
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|err: BoxError| async move {
+                    DefaultApiError::InternalServerError.value();
+                }))
+                .layer(BufferLayer::new(1024))
+                .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
+        );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port.unwrap_or(3000)));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("listening on {}", addr);
 
     axum::Server::bind(&addr)

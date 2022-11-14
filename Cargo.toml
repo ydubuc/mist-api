@@ -10,6 +10,7 @@ axum = { version = "0.6.0-rc.2", features = ["headers", "multipart"] }
 axum-macros = "0.3.0-rc.1"
 tokio = { version = "1.20", features = ["full"] }
 tower-http = { version = "0.3.0", features = ["cors"] }
+tower = { version = "0.4.13", features = ["limit", "buffer"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls", "postgres", "json" ] }
@@ -33,3 +34,4 @@ lettre = { version = "0.10.1", features = ["builder", "tokio1-rustls-tls", "toki
 envy = "0.4"
 regex = "1.7.0"
 lazy_static = "1.4.0"
+base64 = "0.13.1"

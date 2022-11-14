@@ -44,6 +44,10 @@ impl User {
         };
     }
 
+    pub fn nullable_fields() -> [&'static str; 1] {
+        return ["avatar_url"];
+    }
+
     pub fn sortable_fields() -> [&'static str; 2] {
         return ["created_at", "updated_at"];
     }
