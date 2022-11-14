@@ -1,4 +1,5 @@
 use axum::http::StatusCode;
+use bytes::Bytes;
 use reqwest::{header, Response};
 use uuid::Uuid;
 
@@ -6,7 +7,7 @@ extern crate reqwest;
 
 use crate::{
     app::{
-        self, errors::DefaultApiError, models::api_error::ApiError,
+        errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
     auth::jwt::models::claims::Claims,
@@ -71,24 +72,21 @@ async fn generate_media(
     let mut files_properties = Vec::new();
 
     for data in &dalle_response.data {
-        match app::util::reqwest::get_bytes(&data.url).await {
-            Ok(bytes) => {
-                let uuid = Uuid::new_v4().to_string();
-                let file_properties = FileProperties {
-                    id: uuid.to_string(),
-                    field_name: uuid.to_string(),
-                    file_name: uuid.to_string(),
-                    mime_type: mime::IMAGE_PNG.to_string(),
-                    data: bytes,
-                };
+        let Ok(bytes) = base64::decode(&data.b64_json)
+        else {
+            continue;
+        };
 
-                files_properties.push(file_properties);
-            }
-            Err(_) => {
-                // failed to get bytes
-                // skip to next data
-            }
-        }
+        let uuid = Uuid::new_v4().to_string();
+        let file_properties = FileProperties {
+            id: uuid.to_string(),
+            field_name: uuid.to_string(),
+            file_name: uuid.to_string(),
+            mime_type: mime::IMAGE_PNG.to_string(),
+            data: Bytes::from(bytes),
+        };
+
+        files_properties.push(file_properties);
     }
 
     let sub_folder = Some(["media/", &claims.id].concat());
@@ -166,7 +164,8 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
         prompt: dto.prompt.to_string(),
         n: dto.number,
         size,
-        response_format: "url".to_string(),
+        response_format: "b64_json".to_string(),
+        // response_format: "url".to_string(),
     })
 }
 

@@ -83,6 +83,11 @@ async fn generate_media(
         })
     };
 
+    println!(
+        "request processed by {}",
+        generations.first().unwrap().worker_name
+    );
+
     let mut files_properties = Vec::new();
 
     for generation in &generations {
@@ -143,23 +148,30 @@ async fn await_request_completion(
 
     sleep(Duration::from_millis(5000)).await;
 
-    let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
+    let Ok(initial_check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
     else {
         tracing::error!("Failed to get request by id while awaiting stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
-    if !check_response.is_possible {
+    if !initial_check_response.is_possible {
         tracing::error!("Failed to generate stable horde request. Request is not possible.");
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let mut request = check_response;
+    let mut request = initial_check_response;
     let mut encountered_error = false;
-    let mut wait_time: u32 = 5;
+    let mut wait_time: u32 = match request.wait_time < 5 {
+        true => 5,
+        false => request.wait_time,
+    };
+
+    println!("waiting for request, estimated wait_time: {}", wait_time);
 
     while !request.done && !request.faulted && !encountered_error {
         sleep(Duration::from_secs(wait_time.into())).await;
+
+        println!("checking request");
 
         let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
         else {
@@ -169,7 +181,10 @@ async fn await_request_completion(
         };
 
         request = check_response;
-        wait_time = request.wait_time
+        wait_time = match request.wait_time < 5 {
+            true => 5,
+            false => request.wait_time,
+        };
     }
 
     if request.faulted {
@@ -314,9 +329,9 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
             n: Some(dto.number),
         }),
         nsfw: Some(false),
-        trusted_workers: Some(true),
-        censor_nsfw: Some(true),
-        workers: None,
+        trusted_workers: Some(false),
+        censor_nsfw: Some(false),
+        workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
         models: None,
         source_image: None,
         source_processing: None,
