@@ -153,13 +153,16 @@ pub async fn import_media(
     }
 
     for file_properties in &files_properties {
-        if file_properties
+        println!("{}", file_properties.mime_type);
+        println!("mime from mime {}", mime::IMAGE.to_string());
+
+        if !file_properties
             .mime_type
             .starts_with(&mime::IMAGE.to_string())
         {
             return Err(ApiError {
                 code: StatusCode::BAD_REQUEST,
-                message: "Files must be of type image.".to_string(),
+                message: "Files must be images.".to_string(),
             });
         }
     }
