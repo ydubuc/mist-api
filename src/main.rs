@@ -102,6 +102,7 @@ async fn main() {
         .route("/auth/refresh", post(auth::controller::refresh))
         .route("/auth/devices", get(auth::controller::get_devices))
         .route("/auth/logout", post(auth::controller::logout))
+        .route("/auth/delete", post(auth::controller::delete_account))
         // devices
         .route(
             "/devices/:id",
@@ -112,7 +113,6 @@ async fn main() {
         .route("/users/me", get(users::controller::get_user_from_request))
         .route("/users/:id", get(users::controller::get_user_by_id))
         .route("/users/:id", patch(users::controller::edit_user_by_id))
-        .route("/users/:id", delete(users::controller::delete_user_by_id))
         // posts
         .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))

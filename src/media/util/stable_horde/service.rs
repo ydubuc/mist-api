@@ -162,8 +162,11 @@ async fn await_request_completion(
 
     let mut request = initial_check_response;
     let mut encountered_error = false;
-    let mut wait_time: u32 = match request.wait_time < 5 {
-        true => 5,
+
+    let default_wait_time: u32 = 5;
+    let default_process_wait_time: u32 = default_wait_time * (dto.number as u32);
+    let mut wait_time: u32 = match request.wait_time < default_wait_time {
+        true => default_process_wait_time,
         false => request.wait_time,
     };
 
@@ -172,7 +175,7 @@ async fn await_request_completion(
     while !request.done && !request.faulted && !encountered_error {
         sleep(Duration::from_secs(wait_time.into())).await;
 
-        println!("checking request");
+        println!("checking request after waiting for {}", wait_time);
 
         let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
         else {
@@ -182,10 +185,34 @@ async fn await_request_completion(
         };
 
         request = check_response;
-        wait_time = match request.wait_time < 5 {
-            true => 5,
-            false => request.wait_time,
-        };
+
+        let ellapsed_time: u32 = wait_time;
+
+        if request.wait_time > ellapsed_time {
+            wait_time = request.wait_time;
+        } else if (ellapsed_time - request.wait_time) > default_process_wait_time {
+            wait_time = default_process_wait_time + request.wait_time;
+        } else if ellapsed_time - default_wait_time > default_process_wait_time {
+            wait_time = ellapsed_time - default_wait_time
+        } else {
+            wait_time = default_wait_time;
+        }
+
+        // if (ellapsed_time - (dto.number * default_wait_time)) <  {
+        //     wait_time = default_wait_time;
+        // } else {
+        //     if ellapsed_time > dto.number * default_wait_time {
+        //         wait_time = dto.number * default_wait_time;
+        //     } else {
+        //         wait_time = ellapsed_time - default_wait_time;
+        //     }
+        // }
+        // }
+
+        // wait_time = match request.wait_time < 5 {
+        //     true => 5,
+        //     false => request.wait_time,
+        // };
     }
 
     if request.faulted {

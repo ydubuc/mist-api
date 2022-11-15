@@ -115,6 +115,10 @@ pub async fn get_users(
 }
 
 pub async fn get_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<User, ApiError> {
+    return get_user_by_id_as_admin(id, pool).await;
+}
+
+pub async fn get_user_by_id_as_admin(id: &str, pool: &PgPool) -> Result<User, ApiError> {
     let sqlx_result = sqlx::query_as::<_, User>(
         "
         SELECT * FROM users WHERE id = $1
@@ -370,14 +374,6 @@ pub async fn edit_user_password_by_id_as_admin(
             Err(DefaultApiError::InternalServerError.value())
         }
     }
-}
-
-pub async fn delete_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
-    if claims.id != id {
-        return Err(UsersApiError::PermissionDenied.value());
-    }
-
-    return delete_user_by_id_as_admin(id, pool).await;
 }
 
 pub async fn delete_user_by_id_as_admin(id: &str, pool: &PgPool) -> Result<(), ApiError> {

@@ -24,7 +24,8 @@ use crate::{
 
 use super::{
     dtos::{
-        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        delete_account_dto::DeleteAccountDto, edit_password_dto::EditPasswordDto,
+        login_dto::LoginDto, register_dto::RegisterDto,
         request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
@@ -214,6 +215,36 @@ pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessI
 pub async fn logout(dto: &LogoutDeviceDto, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
     match devices::service::logout_devices_with_ids(&dto.device_ids, claims, pool).await {
         Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn delete_account(
+    dto: &DeleteAccountDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
+        Ok(user) => {
+            let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
+            else {
+                return Err(DefaultApiError::InternalServerError.value());
+            };
+
+            if !matches {
+                return Err(ApiError {
+                    code: StatusCode::UNAUTHORIZED,
+                    message: "Invalid password.".to_string(),
+                });
+            }
+
+            // FIXME: cloud bucket is not currently being deleted
+
+            match users::service::delete_user_by_id_as_admin(&claims.id, pool).await {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e),
+            }
+        }
         Err(e) => Err(e),
     }
 }

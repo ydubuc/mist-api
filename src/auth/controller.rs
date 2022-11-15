@@ -20,7 +20,8 @@ use crate::{
 
 use super::{
     dtos::{
-        edit_password_dto::EditPasswordDto, login_dto::LoginDto, register_dto::RegisterDto,
+        delete_account_dto::DeleteAccountDto, edit_password_dto::EditPasswordDto,
+        login_dto::LoginDto, register_dto::RegisterDto,
         request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
@@ -167,6 +168,26 @@ pub async fn logout(
             }
 
             service::logout(&dto, &claims, &state.pool).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn delete_account(
+    State(state): State<AppState>,
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+    JsonFromRequest(dto): JsonFromRequest<DeleteAccountDto>,
+) -> Result<(), ApiError> {
+    match Claims::from_header(authorization, &state.envy.jwt_secret) {
+        Ok(claims) => {
+            if let Err(e) = dto.validate() {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: e.to_string(),
+                });
+            }
+
+            service::delete_account(&dto, &claims, &state.pool).await
         }
         Err(e) => Err(e),
     }

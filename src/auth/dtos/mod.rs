@@ -1,6 +1,7 @@
 use regex::Regex;
 use validator::ValidationError;
 
+pub mod delete_account_dto;
 pub mod edit_password_dto;
 pub mod login_dto;
 pub mod register_dto;
