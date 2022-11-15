@@ -24,7 +24,11 @@ pub struct GetPostsFilterDto {
 
 impl GetPostsFilterDto {
     pub fn to_sql(&self) -> Result<String, ApiError> {
-        let mut sql = "SELECT * FROM posts".to_string();
+        let mut sql = "SELECT posts.*".to_string();
+
+        // JOIN USER
+        sql.push_str(", users.id as user_id, users.username as user_username, users.displayname as user_displayname, users.avatar_url as user_avatar_url FROM posts LEFT JOIN users ON posts.user_id = users.id");
+
         let mut clauses = Vec::new();
 
         let mut sort_field = "created_at".to_string();
@@ -79,7 +83,7 @@ impl GetPostsFilterDto {
             };
 
             if let Some(cursor) = &self.cursor {
-                clauses.push([&sort_field, " ", direction, " ", cursor].concat());
+                clauses.push(["posts.", &sort_field, " ", direction, " ", cursor].concat());
             }
         }
 
@@ -98,7 +102,7 @@ impl GetPostsFilterDto {
         }
 
         // ORDER BY
-        sql.push_str(&[" ORDER BY ", &sort_field, " ", &sort_order].concat());
+        sql.push_str(&[" ORDER BY posts.", &sort_field, " ", &sort_order].concat());
 
         // LIMIT
         if let Some(limit) = self.limit {
@@ -108,6 +112,7 @@ impl GetPostsFilterDto {
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
         tracing::debug!(%sql);
+        println!("{}", sql);
 
         Ok(sql.to_string())
     }

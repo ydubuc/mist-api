@@ -24,78 +24,60 @@ use super::{
     util::{backblaze, dalle, dream, stable_horde},
 };
 
+const SUPPORTED_GENERATORS: [&str; 3] = [
+    MediaGenerator::DALLE,
+    MediaGenerator::DREAM,
+    MediaGenerator::STABLE_HORDE,
+];
+
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
     state: &AppState,
 ) -> Result<GenerateMediaRequest, ApiError> {
-    match dto.generator.as_ref() {
-        MediaGenerator::DALLE => {
-            match generate_media_requests::service::create_generate_media_request(
-                dto,
-                claims,
-                &state.pool,
-            )
-            .await
-            {
-                Ok(generate_media_request) => {
+    if !SUPPORTED_GENERATORS.contains(&dto.generator.as_ref()) {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "Media generator not supported.".to_string(),
+        });
+    }
+
+    match generate_media_requests::service::create_request(dto, claims, &state.pool).await {
+        Ok(generate_media_request) => {
+            match dto.generator.as_ref() {
+                MediaGenerator::DALLE => {
                     dalle::service::spawn_generate_media_task(
                         generate_media_request.clone(),
                         claims.clone(),
                         state.clone(),
                     );
-
-                    Ok(generate_media_request)
                 }
-                Err(e) => Err(e),
-            }
-        }
-        MediaGenerator::DREAM => {
-            match generate_media_requests::service::create_generate_media_request(
-                dto,
-                claims,
-                &state.pool,
-            )
-            .await
-            {
-                Ok(generate_media_request) => {
+                MediaGenerator::DREAM => {
                     dream::service::spawn_generate_media_task(
                         generate_media_request.clone(),
                         claims.clone(),
                         state.clone(),
                     );
-
-                    Ok(generate_media_request)
                 }
-                Err(e) => Err(e),
-            }
-        }
-
-        MediaGenerator::STABLE_HORDE => {
-            match generate_media_requests::service::create_generate_media_request(
-                dto,
-                claims,
-                &state.pool,
-            )
-            .await
-            {
-                Ok(generate_media_request) => {
+                MediaGenerator::STABLE_HORDE => {
                     stable_horde::service::spawn_generate_media_task(
                         generate_media_request.clone(),
                         claims.clone(),
                         state.clone(),
                     );
-
-                    Ok(generate_media_request)
                 }
-                Err(e) => Err(e),
+                _ => {
+                    // this should not happen
+                    return Err(ApiError {
+                        code: StatusCode::BAD_REQUEST,
+                        message: "Media generator not supported.".to_string(),
+                    });
+                }
             }
-        }
 
-        _ => Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "Media generator not supported.".to_string(),
-        }),
+            Ok(generate_media_request)
+        }
+        Err(e) => Err(e),
     }
 }
 

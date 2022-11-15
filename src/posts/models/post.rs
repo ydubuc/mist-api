@@ -13,6 +13,15 @@ use super::post_media::PostMedia;
 pub struct Post {
     pub id: String,
     pub user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub user_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub user_displayname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub user_avatar_url: Option<String>,
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
@@ -41,6 +50,9 @@ impl Post {
         return Self {
             id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
+            user_username: None,
+            user_displayname: None,
+            user_avatar_url: None,
             title: dto.title.to_string(),
             content: dto.content.to_owned(),
             media: match post_media {

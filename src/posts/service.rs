@@ -157,35 +157,35 @@ pub async fn get_posts(
 }
 
 pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
-    // let sqlx_result = sqlx::query_as!(
-    //     Post,
-    //     r#"
-    //     SELECT posts.*, users.* FROM posts
-    //     INNER JOIN users ON posts.user_id = users.id
-    //     "#
-    // )
-    // .fetch_optional(pool)
-    // .await;
+    let sqlx_result = sqlx::query_as::<_, Post>(
+        r#"
+        SELECT posts.*,
+        users.id as user_id,
+        users.username as user_username,
+        users.displayname as user_displayname,
+        users.avatar_url as user_avatar_url
+        FROM posts
+        LEFT JOIN users
+        ON posts.user_id = users.id
+        WHERE posts.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await;
+
+    // WORKING CODE BELOW
 
     // let sqlx_result = sqlx::query_as::<_, Post>(
     //     "
-    //     SELECT posts.*, users.* FROM posts
-    //     INNER JOIN users ON posts.user_id = users.id
+    //     SELECT * FROM posts
+    //     WHERE posts.id = $1
     //     ",
     // )
+    // .bind(id)
+    // .bind(&claims.id)
     // .fetch_optional(pool)
     // .await;
-
-    let sqlx_result = sqlx::query_as::<_, Post>(
-        "
-        SELECT * FROM posts
-        WHERE posts.id = $1 AND user_id = $2
-        ",
-    )
-    .bind(id)
-    .bind(&claims.id)
-    .fetch_optional(pool)
-    .await;
 
     match sqlx_result {
         Ok(post) => match post {

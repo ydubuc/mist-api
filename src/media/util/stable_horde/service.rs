@@ -309,7 +309,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
     Ok(InputSpec {
         prompt: dto.prompt.to_string(),
         params: Some(InputSpecParams {
-            sample_name: None,
+            sample_namer: None,
             cfg_scale: None,
             denoising_strength: None,
             seed: None,
@@ -321,7 +321,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
             use_real_esrgan: None,
             use_ldsr: None,
             use_upscaling: Some(false),
-            steps: Some(50),
+            steps: Some(30),
             n: Some(dto.number),
         }),
         nsfw: Some(false),

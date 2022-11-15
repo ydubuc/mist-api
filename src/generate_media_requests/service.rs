@@ -17,7 +17,7 @@ use super::{
     models::generate_media_request::GenerateMediaRequest,
 };
 
-pub async fn create_generate_media_request(
+pub async fn create_request(
     dto: &GenerateMediaDto,
     claims: &Claims,
     pool: &PgPool,

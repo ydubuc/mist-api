@@ -26,7 +26,7 @@ pub struct InputSpec {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InputSpecParams {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sample_name: Option<String>,
+    pub sample_namer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cfg_scale: Option<i8>,
     #[serde(skip_serializing_if = "Option::is_none")]
