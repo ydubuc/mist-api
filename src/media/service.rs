@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
-    enums::{media_generator::MediaGenerator, media_source::MediaSource},
+    enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
     util::{backblaze, dalle, dream, stable_horde},
@@ -191,8 +191,8 @@ pub async fn import_media(
                     message: "Failed to upload files.".to_string(),
                 });
             }
-            // let media =
-            //     Media::from_backblaze_responses(responses, MediaSource::Import, claims, &state.b2);
+
+            // FIXME: note that if responses are handled in parallel, sizes with not have the right index
             let media = Media::from_import(&responses, &sizes, claims, &state.b2);
 
             return upload_media(media, &state.pool).await;

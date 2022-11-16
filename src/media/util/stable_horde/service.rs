@@ -16,8 +16,7 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
-        models::media::Media, util::backblaze,
+        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
     },
     AppState,
 };
@@ -41,11 +40,11 @@ pub fn spawn_generate_media_task(
         let media: Option<Vec<Media>>;
 
         match generate_media(&generate_media_request.generate_media_dto, &claims, &state).await {
-            Ok(m) => {
+            Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
-                media = Some(m);
+                media = Some(_media);
             }
-            Err(e) => {
+            Err(_) => {
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -112,12 +111,6 @@ async fn generate_media(
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            // let media = Media::from_backblaze_responses(
-            //     responses,
-            //     MediaSource::StableHorde,
-            //     claims,
-            //     &state.b2,
-            // );
             let media = Media::from_dto(dto, &responses, claims, &state.b2);
 
             if media.len() == 0 {
@@ -190,6 +183,8 @@ async fn await_request_completion(
             true => request.wait_time,
             false => default_wait_time,
         };
+
+        println!("request not done, waiting for: {}", wait_time);
     }
 
     if request.faulted {
@@ -331,7 +326,8 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
         nsfw: Some(false),
         trusted_workers: Some(false),
         censor_nsfw: Some(false),
-        workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
+        workers: None,
+        // workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
         models: None,
         source_image: None,
         source_processing: None,

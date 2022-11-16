@@ -24,6 +24,8 @@ pub async fn upload_files(
 ) -> Result<Vec<BackblazeUploadFileResponse>, ApiError> {
     let mut responses = Vec::new();
 
+    // FIXME: note if doing this operation in parallel, responses will not match indexes of files
+    // consider identifier file properties first
     for file_properties in files_properties {
         match upload_file(&file_properties, sub_folder, b2).await {
             Ok(res) => responses.push(res),
@@ -68,7 +70,7 @@ async fn upload_file(
             let result = client
                 .post(upload_url_res.upload_url)
                 .headers(headers)
-                .body(file_properties.data.to_owned())
+                .body(file_properties.data.clone())
                 .send()
                 .await;
 
