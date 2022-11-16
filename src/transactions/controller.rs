@@ -28,5 +28,5 @@ pub async fn handle_webhook(
         });
     }
 
-    return service::handle_webhook(webhook).await;
+    return service::handle_webhook(webhook, &state).await;
 }
