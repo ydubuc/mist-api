@@ -21,6 +21,7 @@ pub struct User {
     pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    pub ink: i64,
     pub updated_at: i64,
     pub created_at: i64,
 }
@@ -39,6 +40,7 @@ impl User {
             email_pending: None,
             avatar_url: None,
             password_hash: hash,
+            ink: 0,
             updated_at: current_time as i64,
             created_at: current_time as i64,
         };
