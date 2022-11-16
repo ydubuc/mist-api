@@ -66,15 +66,23 @@ async fn handle_non_renewing_event(
                 });
             };
 
-            let _ = update_user_ink_by_id(&user_id, 50, &mut tx).await;
+            let result_1 = update_user_ink_by_id(&user_id, 50, &mut tx).await;
             println!("complete update_user_ink_by_id");
-            let _ = create_transaction(webhook, &mut tx).await;
+            let result_2 = create_transaction(webhook, &mut tx).await;
             println!("complete update_user_ink_by_id");
 
             match tx.commit().await {
                 Ok(_) => {
-                    println!("complete success");
-                    return Ok(());
+                    println!("tx ok");
+                    return if result_1.is_ok() && result_2.is_ok() {
+                        Ok(())
+                    } else {
+                        println!("database transaction did not complete");
+                        return Err(ApiError {
+                            code: StatusCode::INTERNAL_SERVER_ERROR,
+                            message: "Database transaction did not go through.".to_string(),
+                        });
+                    };
                 }
                 Err(e) => {
                     tracing::error!(%e);
@@ -125,7 +133,7 @@ fn retrieve_user_id(
 
 async fn update_user_ink_by_id(
     id: &str,
-    amount: i8,
+    amount: i32,
     tx: &mut Transaction<'_, Postgres>,
 ) -> Result<(), ApiError> {
     println!("update_user_ink_by_id");
