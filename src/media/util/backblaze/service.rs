@@ -21,7 +21,7 @@ pub async fn upload_files(
     files_properties: &Vec<FileProperties>,
     sub_folder: &Option<String>,
     b2: &B2,
-) -> Result<Vec<(FileProperties, BackblazeUploadFileResponse)>, ApiError> {
+) -> Result<Vec<BackblazeUploadFileResponse>, ApiError> {
     let mut responses = Vec::new();
 
     for file_properties in files_properties {
@@ -38,7 +38,7 @@ async fn upload_file(
     file_properties: &FileProperties,
     sub_folder: &Option<String>,
     b2: &B2,
-) -> Result<(FileProperties, BackblazeUploadFileResponse), ApiError> {
+) -> Result<BackblazeUploadFileResponse, ApiError> {
     let upload_url_result = get_upload_url(&b2.bucketId, b2).await;
 
     match upload_url_result {
@@ -75,7 +75,7 @@ async fn upload_file(
             match result {
                 Ok(res) => match res.text().await {
                     Ok(text) => match serde_json::from_str(&text) {
-                        Ok(upload_file_res) => Ok((file_properties.clone(), upload_file_res)),
+                        Ok(upload_file_res) => Ok(upload_file_res),
                         Err(_) => {
                             tracing::error!(%text);
                             return Err(DefaultApiError::InternalServerError.value());

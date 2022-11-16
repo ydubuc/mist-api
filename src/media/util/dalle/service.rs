@@ -92,8 +92,9 @@ async fn generate_media(
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            let media =
-                Media::from_backblaze_responses(responses, MediaSource::Dalle, claims, &state.b2);
+            // let media =
+            //     Media::from_backblaze_responses(responses, MediaSource::Dalle, claims, &state.b2);
+            let media = Media::from_dto(dto, &responses, claims, &state.b2);
 
             if media.len() == 0 {
                 return Err(ApiError {

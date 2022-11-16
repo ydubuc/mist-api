@@ -167,6 +167,8 @@ pub async fn import_media(
         }
     }
 
+    let mut sizes = Vec::new();
+
     for file_properties in &files_properties {
         let Ok(size) = imagesize::blob_size(&file_properties.data)
         else {
@@ -175,21 +177,23 @@ pub async fn import_media(
                 message: "Failed to get image size.".to_string()
             })
         };
+
+        sizes.push(size);
     }
 
     let sub_folder = Some(["media/", &claims.id].concat());
 
     match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            let media =
-                Media::from_backblaze_responses(responses, MediaSource::Import, claims, &state.b2);
-
-            if media.len() == 0 {
+            if responses.len() == 0 {
                 return Err(ApiError {
                     code: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "Failed to upload files.".to_string(),
                 });
             }
+            // let media =
+            //     Media::from_backblaze_responses(responses, MediaSource::Import, claims, &state.b2);
+            let media = Media::from_import(&responses, &sizes, claims, &state.b2);
 
             return upload_media(media, &state.pool).await;
         }
