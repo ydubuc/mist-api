@@ -14,13 +14,13 @@ pub struct Post {
     pub id: String,
     pub user_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
     pub user_username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
     pub user_displayname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
     pub user_avatar_url: Option<String>,
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]

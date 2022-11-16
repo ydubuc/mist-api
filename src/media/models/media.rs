@@ -23,6 +23,7 @@ pub struct Media {
     pub width: i16,
     pub height: i16,
     pub mime_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub generate_media_dto: Option<sqlx::types::Json<GenerateMediaDto>>,
     pub source: String,
     pub created_at: i64,
