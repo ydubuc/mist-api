@@ -54,7 +54,8 @@ async fn main() {
     let port = envy.port.to_owned().unwrap_or(3000);
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_headers([CONTENT_TYPE, AUTHORIZATION])
+        // .allow_headers([CONTENT_TYPE, AUTHORIZATION])
+        .allow_headers(Any)
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
 
     // let cors = CorsLayer::new()
