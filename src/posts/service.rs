@@ -174,19 +174,6 @@ pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<
     .fetch_optional(pool)
     .await;
 
-    // WORKING CODE BELOW
-
-    // let sqlx_result = sqlx::query_as::<_, Post>(
-    //     "
-    //     SELECT * FROM posts
-    //     WHERE posts.id = $1
-    //     ",
-    // )
-    // .bind(id)
-    // .bind(&claims.id)
-    // .fetch_optional(pool)
-    // .await;
-
     match sqlx_result {
         Ok(post) => match post {
             Some(post) => Ok(post),

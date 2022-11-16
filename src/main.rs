@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use std::{env, net::SocketAddr, time::Duration};
+use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 #[macro_use]
 extern crate lazy_static;
@@ -33,7 +33,7 @@ mod users;
 pub struct AppState {
     pub pool: PgPool,
     pub b2: B2,
-    pub envy: Envy,
+    pub envy: Arc<Envy>,
 }
 
 #[tokio::main]
@@ -62,7 +62,8 @@ async fn main() {
     //     .allow_headers(Any);
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(50)
+        .idle_timeout(Some(Duration::from_secs(60)))
         .connect(&envy.database_url)
         .await
         .expect("failed to connect to database");
@@ -72,13 +73,18 @@ async fn main() {
     let backblaze_key_id = envy.backblaze_key_id.to_string();
     let backblaze_app_key = envy.backblaze_app_key.to_string();
     let backblaze_bucket_id = envy.backblaze_bucket_id.to_string();
+
     let mut b2 = B2::new(Config::new(backblaze_key_id, backblaze_app_key));
     b2.set_bucket_id(backblaze_bucket_id);
     b2.login().await.expect("failed to login to backblaze");
 
     println!("logged in to backblaze");
 
-    let state = AppState { pool, b2, envy };
+    let state = AppState {
+        pool,
+        b2,
+        envy: Arc::new(envy),
+    };
 
     // app
     let app = Router::with_state(state)
