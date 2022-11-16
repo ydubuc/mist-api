@@ -179,7 +179,7 @@ pub async fn import_media(
 
     let sub_folder = Some(["media/", &claims.id].concat());
 
-    match backblaze::service::upload_files(files_properties, &sub_folder, &state.b2).await {
+    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
             let media =
                 Media::from_backblaze_responses(responses, MediaSource::Import, claims, &state.b2);
