@@ -8,6 +8,7 @@ CREATE TABLE users(
     email_pending VARCHAR(255),
     avatar_url TEXT,
     password_hash VARCHAR(255) NOT NULL,
+    ink INTEGER NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );
@@ -48,6 +49,7 @@ CREATE TABLE media(
     width SMALLINT NOT NULL,
     height SMALLINT NOT NULL,
     mime_type VARCHAR(255) NOT NULL,
+    generate_media_dto JSONB,
     source VARCHAR(255) NOT NULL,
     created_at BIGINT NOT NULL
 );
@@ -65,3 +67,9 @@ CREATE TABLE generate_media_requests(
 
 CREATE INDEX generate_media_requests_status ON generate_media_requests (status);
 CREATE INDEX generate_media_requests_created_at ON generate_media_requests (created_at);
+
+CREATE TABLE transactions(
+    id VARCHAR(255) PRIMARY KEY,
+    data JSONB NOT NULL,
+    created_at BIGINT NOT NULL
+);

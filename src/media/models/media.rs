@@ -23,6 +23,7 @@ pub struct Media {
     pub width: i16,
     pub height: i16,
     pub mime_type: String,
+    pub generate_media_dto: Option<sqlx::types::Json<GenerateMediaDto>>,
     pub source: String,
     pub created_at: i64,
 }
@@ -52,6 +53,7 @@ impl Media {
                 width: dto.width as i16,
                 height: dto.height as i16,
                 mime_type: res.content_type.to_string(),
+                generate_media_dto: Some(sqlx::types::Json(dto.clone())),
                 source: dto.generator.to_string(),
                 created_at: time::current_time_in_secs() as i64,
             };
@@ -86,6 +88,7 @@ impl Media {
                 width: image_size.get(index).unwrap().width.to_owned() as i16,
                 height: image_size.get(index).unwrap().height.to_owned() as i16,
                 mime_type: res.content_type.to_string(),
+                generate_media_dto: None,
                 source: MediaSource::Import.value(),
                 created_at: time::current_time_in_secs() as i64,
             };

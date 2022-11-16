@@ -18,7 +18,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::app::{env::Envy, errors::DefaultApiError};
+use crate::app::{envy::Envy, errors::DefaultApiError};
 
 mod app;
 mod auth;
@@ -27,6 +27,7 @@ mod generate_media_requests;
 mod mail;
 mod media;
 mod posts;
+mod transactions;
 mod users;
 
 #[derive(Clone)]
@@ -89,6 +90,11 @@ async fn main() {
     // app
     let app = Router::with_state(state)
         .route("/", get(app::controller::get_root))
+        // transactions
+        .route(
+            "/transactions",
+            post(transactions::controller::handle_webhook),
+        )
         // auth
         .route("/auth/register", post(auth::controller::register))
         .route("/auth/login", post(auth::controller::login))
@@ -140,7 +146,7 @@ async fn main() {
         .layer(cors)
         .layer(
             ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(|err: BoxError| async move {
+                .layer(HandleErrorLayer::new(|_err: BoxError| async move {
                     DefaultApiError::InternalServerError.value();
                 }))
                 .layer(BufferLayer::new(1024))

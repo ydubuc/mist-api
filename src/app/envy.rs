@@ -9,6 +9,7 @@ pub struct Envy {
     pub database_url: String,
 
     pub jwt_secret: String,
+    pub revenuecat_webhook_secret: String,
 
     pub openai_api_key: String,
     pub dream_api_key: String,

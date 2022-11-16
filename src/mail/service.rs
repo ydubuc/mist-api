@@ -5,7 +5,7 @@ use lettre::{
     AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
 };
 
-use crate::app::{env::Envy, models::api_error::ApiError};
+use crate::app::{envy::Envy, models::api_error::ApiError};
 
 pub async fn send_mail(to: &str, subject: &str, body: &str, envy: &Envy) -> Result<(), ApiError> {
     let mail = lettre::Message::builder()
