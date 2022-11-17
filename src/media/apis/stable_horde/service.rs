@@ -325,7 +325,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
             use_real_esrgan: None,
             use_ldsr: None,
             use_upscaling: Some(false),
-            steps: Some(30),
+            steps: Some(50),
             n: Some(dto.number),
         }),
         nsfw: Some(false),
