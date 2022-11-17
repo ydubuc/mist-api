@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct DalleGenerateImageResponse {
+pub struct DalleGenerateImagesResponse {
     #[serde(rename(deserialize = "created"))]
     pub created: u64,
     #[serde(rename(deserialize = "data"))]

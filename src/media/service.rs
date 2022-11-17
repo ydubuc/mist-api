@@ -1,8 +1,5 @@
-use std::pin::Pin;
-
 use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
-use futures::Future;
 use sqlx::PgPool;
 
 use crate::{
@@ -20,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, dream, stable_horde},
+    apis::{dalle, dream, mist_stability, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
@@ -28,10 +25,11 @@ use super::{
     util::{self, backblaze, ink::EditUserInkDto},
 };
 
-const SUPPORTED_GENERATORS: [&str; 2] = [
+const SUPPORTED_GENERATORS: [&str; 3] = [
     MediaGenerator::DALLE,
     // MediaGenerator::DREAM,
     MediaGenerator::STABLE_HORDE,
+    MediaGenerator::MIST_STABILITY,
 ];
 
 pub async fn generate_media(
@@ -54,33 +52,32 @@ pub async fn generate_media(
     };
 
     match dto.generator.as_ref() {
-        MediaGenerator::DALLE => {
-            dalle::service::spawn_generate_media_task(
-                generate_media_request.clone(),
-                claims.clone(),
-                state.clone(),
-            );
-        }
-        MediaGenerator::DREAM => {
-            dream::service::spawn_generate_media_task(
-                generate_media_request.clone(),
-                claims.clone(),
-                state.clone(),
-            );
-        }
-        MediaGenerator::STABLE_HORDE => {
-            stable_horde::service::spawn_generate_media_task(
-                generate_media_request.clone(),
-                claims.clone(),
-                state.clone(),
-            );
-        }
+        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(
+            generate_media_request.clone(),
+            claims.clone(),
+            state.clone(),
+        ),
+        MediaGenerator::DREAM => dream::service::spawn_generate_media_task(
+            generate_media_request.clone(),
+            claims.clone(),
+            state.clone(),
+        ),
+        MediaGenerator::STABLE_HORDE => stable_horde::service::spawn_generate_media_task(
+            generate_media_request.clone(),
+            claims.clone(),
+            state.clone(),
+        ),
+        MediaGenerator::MIST_STABILITY => mist_stability::service::spawn_generate_media_task(
+            generate_media_request.clone(),
+            claims.clone(),
+            state.clone(),
+        ),
+        // this should not happen because it should be validated above
         _ => {
-            // this should not happen because it should be validated above
             return Err(ApiError {
                 code: StatusCode::BAD_REQUEST,
                 message: "Media generator not supported.".to_string(),
-            });
+            })
         }
     }
 
@@ -173,14 +170,20 @@ pub async fn on_generate_media_completion(
         None => 0,
     };
 
-    let ink_cost = util::ink::calculate_ink_cost(
+    let ink_cost = util::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
+
+    let ink_cost_actual = util::ink::calculate_ink_cost(
         &generate_media_request.generate_media_dto,
         Some(media_generated),
     );
 
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: None,
-        ink_decrease: if ink_cost > 0 { Some(ink_cost) } else { None },
+        ink_decrease: if ink_cost_actual > 0 {
+            Some(ink_cost_actual)
+        } else {
+            None
+        },
         ink_pending_increase: None,
         ink_pending_decrease: Some(ink_cost),
     };

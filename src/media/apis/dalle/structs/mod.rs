@@ -1,1 +1,1 @@
-pub mod dalle_generate_image_response;
+pub mod dalle_generate_images_response;

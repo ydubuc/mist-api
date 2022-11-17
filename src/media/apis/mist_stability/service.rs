@@ -1,9 +1,6 @@
-use axum::http::StatusCode;
 use bytes::Bytes;
-use reqwest::{header, Response};
+use reqwest::{header, Response, StatusCode};
 use uuid::Uuid;
-
-extern crate reqwest;
 
 use crate::{
     app::{
@@ -23,7 +20,7 @@ use crate::{
 
 use super::{
     config::API_URL, models::input_spec::InputSpec,
-    structs::dalle_generate_images_response::DalleGenerateImagesResponse,
+    structs::mist_stability_generate_images_response::MistStabilityGenerateImagesResponse,
 };
 
 pub fn spawn_generate_media_task(
@@ -40,7 +37,7 @@ pub fn spawn_generate_media_task(
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
             }
-            Err(e) => {
+            Err(_) => {
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -62,17 +59,19 @@ async fn generate_media(
     claims: &Claims,
     state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
-    let dalle_generate_images_result = dalle_generate_images(dto, &state.envy.openai_api_key).await;
-    let Ok(dalle_response) = dalle_generate_images_result
+    let mist_stability_generate_images_result =
+        mist_stability_generate_images(dto, &state.envy.mist_stability_api_key).await;
+    let Ok(mist_response) = mist_stability_generate_images_result
     else {
-        return Err(dalle_generate_images_result.unwrap_err());
+        return Err(mist_stability_generate_images_result.unwrap_err());
     };
 
     let mut files_properties = Vec::new();
 
-    for data in &dalle_response.data {
-        let Ok(bytes) = base64::decode(&data.b64_json)
+    for data in &mist_response.base64_data {
+        let Ok(bytes) = base64::decode(&data)
         else {
+            println!("could not decode data");
             continue;
         };
 
@@ -88,9 +87,13 @@ async fn generate_media(
         files_properties.push(file_properties);
     }
 
+    println!("files properties {}", files_properties.len());
+
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
+            println!("responses {}", responses.len());
+
             let media = Media::from_dto(dto, &responses, claims, &state.b2);
 
             if media.len() == 0 {
@@ -109,10 +112,10 @@ async fn generate_media(
     }
 }
 
-async fn dalle_generate_images(
+async fn mist_stability_generate_images(
     dto: &GenerateMediaDto,
-    openai_api_key: &str,
-) -> Result<DalleGenerateImagesResponse, ApiError> {
+    mist_stability_api_key: &str,
+) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
     let input_spec = match provide_input_spec(dto) {
         Ok(input_spec) => input_spec,
         Err(e) => return Err(e),
@@ -122,11 +125,14 @@ async fn dalle_generate_images(
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert(
         "Authorization",
-        ["Bearer ", openai_api_key].concat().parse().unwrap(),
+        ["Bearer ", mist_stability_api_key]
+            .concat()
+            .parse()
+            .unwrap(),
     );
 
     let client = reqwest::Client::new();
-    let url = format!("{}/images/generations", API_URL);
+    let url = format!("{}/images/generate", API_URL);
     let result = client
         .post(url)
         .headers(headers)
@@ -135,7 +141,7 @@ async fn dalle_generate_images(
         .await;
 
     match result {
-        Ok(res) => parse_response_to_dalle_generate_images_response(res).await,
+        Ok(res) => parse_response_to_mist_stability_generate_images_response(res).await,
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
@@ -144,36 +150,45 @@ async fn dalle_generate_images(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
-    let size = format!("{}x{}", dto.width, dto.height);
+    let size = (dto.width, dto.height);
 
     let valid_sizes = [
-        "256x256".to_string(),
-        "512x512".to_string(),
-        "1024x1024".to_string(),
+        (512, 512),
+        (512, 1024),
+        (1024, 512),
+        (640, 1024),
+        (1024, 640),
     ];
 
     if !valid_sizes.contains(&size) {
         return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: ["Size must be one of: ", &valid_sizes.join(",")].concat(),
+            message: [
+                "Size must be one of: ",
+                &valid_sizes
+                    .map(|val| format!("{}x{}", val.0, val.1))
+                    .join(", "),
+            ]
+            .concat(),
         });
     }
 
     Ok(InputSpec {
         prompt: dto.prompt.to_string(),
-        n: dto.number,
-        size,
-        response_format: "b64_json".to_string(),
-        // response_format: "url".to_string(),
+        width: dto.width,
+        height: dto.height,
+        number: dto.number,
     })
 }
 
-async fn parse_response_to_dalle_generate_images_response(
+async fn parse_response_to_mist_stability_generate_images_response(
     res: Response,
-) -> Result<DalleGenerateImagesResponse, ApiError> {
+) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
     match res.text().await {
         Ok(text) => match serde_json::from_str(&text) {
-            Ok(dalle_generate_images_response) => Ok(dalle_generate_images_response),
+            Ok(mist_stability_generate_images_response) => {
+                Ok(mist_stability_generate_images_response)
+            }
             Err(_) => {
                 tracing::error!(%text);
                 Err(DefaultApiError::InternalServerError.value())

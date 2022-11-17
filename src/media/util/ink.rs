@@ -4,6 +4,9 @@ use sqlx::Postgres;
 use crate::{app::models::api_error::ApiError, media::dtos::generate_media_dto::GenerateMediaDto};
 
 pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) -> i64 {
+    println!("calculating ink cost from dto number: {}", dto.number);
+    println!("actual number generated: {:?}", number_generated);
+
     let ink_per_pixel: f64 = 10.0 / (512.0 * 512.0);
     println!("ink per pixel {}", ink_per_pixel);
 
@@ -12,7 +15,7 @@ pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) 
         None => dto.number,
     };
 
-    let pixels = ((number as u32) * (dto.width as u32 * dto.height as u32)) as u64;
+    let pixels = ((number as u64) * (dto.width as u64 * dto.height as u64)) as u64;
     println!("pixels {}", pixels);
 
     let ink_cost = ((pixels as f64) * ink_per_pixel).round() as i64;

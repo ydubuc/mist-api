@@ -14,6 +14,7 @@ pub struct Envy {
     pub openai_api_key: String,
     pub dream_api_key: String,
     pub stable_horde_api_key: String,
+    pub mist_stability_api_key: String,
 
     pub backblaze_key_id: String,
     pub backblaze_app_key: String,
