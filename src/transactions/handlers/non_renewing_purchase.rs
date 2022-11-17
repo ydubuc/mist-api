@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 
 use crate::{
     app::models::api_error::ApiError,
-    media::{self, util::ink::EditUserInkDto},
+    media::{self, util::ink::dtos::edit_user_dto::EditUserInkDto},
     transactions::{
         handlers::{
             errors::HandlersApiError, INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_SMALL_AMOUNT,
@@ -60,7 +60,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     };
 
     let result_1 =
-        media::util::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
+        media::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
     println!("complete update_user_ink_by_id");
 
     let result_2 = service::create_transaction(webhook, &mut tx).await;

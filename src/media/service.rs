@@ -22,7 +22,7 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::{self, backblaze, ink::EditUserInkDto},
+    util::{self, backblaze, ink::dtos::edit_user_dto::EditUserInkDto},
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -108,7 +108,7 @@ async fn get_generate_media_request(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<GenerateMediaRequest, ApiError> {
-    let ink_cost = util::ink::calculate_ink_cost(&dto, None);
+    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
 
     let user = match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
         Ok(user) => user,
@@ -138,7 +138,8 @@ async fn get_generate_media_request(
         ink_pending_decrease: None,
     };
 
-    let result_1 = util::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+    let result_1 =
+        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     let result_2 = generate_media_requests::service::create_request(dto, claims, &mut tx).await;
 
@@ -189,9 +190,10 @@ pub async fn on_generate_media_completion(
         None => 0,
     };
 
-    let ink_cost = util::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
+    let ink_cost =
+        util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
 
-    let ink_cost_actual = util::ink::calculate_ink_cost(
+    let ink_cost_actual = util::ink::ink::calculate_ink_cost(
         &generate_media_request.generate_media_dto,
         Some(media_generated),
     );
@@ -207,7 +209,8 @@ pub async fn on_generate_media_completion(
         ink_pending_decrease: Some(ink_cost),
     };
 
-    let result_2 = util::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+    let result_2 =
+        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     match tx.commit().await {
         Ok(_) => {
