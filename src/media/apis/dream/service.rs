@@ -17,16 +17,14 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{
-        self,
-        dtos::generate_media_dto::GenerateMediaDto,
-        models::media::Media,
-        util::{backblaze, dream::enums::dream_task_state::DreamTaskState},
+        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
     },
     AppState,
 };
 
 use super::{
-    config::API_URL, models::input_spec::InputSpec, structs::dream_task_response::DreamTaskResponse,
+    config::API_URL, enums::dream_task_state::DreamTaskState, models::input_spec::InputSpec,
+    structs::dream_task_response::DreamTaskResponse,
 };
 
 pub fn spawn_generate_media_task(

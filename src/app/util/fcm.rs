@@ -9,7 +9,7 @@ pub async fn send_notification(
     let mut builder = fcm::NotificationBuilder::new();
     builder.title(&title);
     builder.body(&body);
-    // builder.sound("default");
+    builder.sound("default");
 
     let notification = builder.finalize();
 
@@ -17,7 +17,7 @@ pub async fn send_notification(
     message_builder.notification(notification);
 
     match client.send(message_builder.finalize()).await {
-        Ok(res) => Ok(()),
+        Ok(_) => Ok(()),
         Err(e) => {
             tracing::error!(%e);
 

@@ -37,9 +37,10 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
         "
         INSERT INTO users (
             id, username, username_key, displayname,
-            email, email_key, password_hash, updated_at, created_at
+            email, email_key, password_hash,
+            ink, ink_pending, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ",
     )
     .bind(&user.id)
@@ -49,6 +50,8 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
     .bind(&user.email)
     .bind(&user.email_key)
     .bind(&user.password_hash)
+    .bind(&user.ink)
+    .bind(&user.ink_pending)
     .bind(user.updated_at.to_owned() as i64)
     .bind(user.created_at.to_owned() as i64)
     .execute(pool)

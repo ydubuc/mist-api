@@ -9,6 +9,7 @@ CREATE TABLE users(
     avatar_url TEXT,
     password_hash VARCHAR(255) NOT NULL,
     ink INTEGER NOT NULL,
+    ink_pending INTEGER NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );

@@ -20,7 +20,7 @@ use super::{
 pub async fn create_request(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    pool: &PgPool,
+    tx: &mut sqlx::Transaction<'_, Postgres>,
 ) -> Result<GenerateMediaRequest, ApiError> {
     let generate_media_request = GenerateMediaRequest::new(claims, dto);
 
@@ -37,7 +37,7 @@ pub async fn create_request(
     .bind(&generate_media_request.status)
     .bind(&generate_media_request.generate_media_dto)
     .bind(&generate_media_request.created_at)
-    .execute(pool)
+    .execute(&mut *tx)
     .await;
 
     match sqlx_result {

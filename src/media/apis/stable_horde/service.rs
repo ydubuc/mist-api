@@ -80,7 +80,7 @@ async fn generate_media(
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Stable horde generated no images.".to_string()
-        })
+        });
     };
 
     println!(
@@ -163,9 +163,8 @@ async fn await_request_completion(
         false => default_wait_time,
     };
 
-    println!("waiting for request, estimated wait_time: {}", wait_time);
-
     while !request.done && !request.faulted && !encountered_error {
+        println!("waiting for request, estimated wait_time: {}", wait_time);
         sleep(Duration::from_secs(wait_time.into())).await;
 
         println!("checking request after waiting for {}", wait_time);
@@ -180,11 +179,12 @@ async fn await_request_completion(
         request = check_response;
 
         wait_time = match request.wait_time > default_wait_time {
-            true => request.wait_time,
+            true => match request.wait_time > 120 {
+                true => 120,
+                false => request.wait_time,
+            },
             false => default_wait_time,
         };
-
-        println!("request not done, waiting for: {}", wait_time);
     }
 
     if request.faulted {

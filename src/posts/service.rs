@@ -105,7 +105,7 @@ pub async fn create_post_with_media(
     media: &Vec<Media>,
     claims: &Claims,
     pool: &PgPool,
-) -> Result<Post, ApiError> {
+) {
     let mut media_ids = Vec::new();
 
     for m in media {
@@ -118,10 +118,7 @@ pub async fn create_post_with_media(
         media_ids: Some(media_ids),
     };
 
-    match create_post(&dto, claims, pool).await {
-        Ok(post) => Ok(post),
-        Err(e) => Err(e),
-    }
+    create_post(&dto, claims, pool).await;
 }
 
 pub async fn get_posts(
