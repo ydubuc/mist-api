@@ -22,7 +22,6 @@ pub struct EditUserDto {
     ))]
     #[validate(regex(path = "super::DISPLAYNAME_REGEX"))]
     pub displayname: Option<String>,
-    #[validate(length(equal = 36, message = "avatar_media_id must be 36 characters."))]
     pub avatar_media_id: Option<String>,
     pub nullify: Option<Vec<String>>,
 }
