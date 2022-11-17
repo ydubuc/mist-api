@@ -158,9 +158,14 @@ async fn await_request_completion(
     let mut encountered_error = false;
 
     let default_wait_time: u32 = 10;
-    let mut wait_time: u32 = match request.wait_time > default_wait_time {
-        true => request.wait_time,
-        false => default_wait_time,
+    let max_wait_time: u32 = 120;
+
+    let mut wait_time: u32 = match request.wait_time > max_wait_time {
+        true => max_wait_time,
+        false => match request.wait_time > default_wait_time {
+            true => request.wait_time,
+            false => default_wait_time,
+        },
     };
 
     while !request.done && !request.faulted && !encountered_error {
@@ -178,12 +183,12 @@ async fn await_request_completion(
 
         request = check_response;
 
-        wait_time = match request.wait_time > default_wait_time {
-            true => match request.wait_time > 120 {
-                true => 120,
-                false => request.wait_time,
+        wait_time = match request.wait_time > max_wait_time {
+            true => max_wait_time,
+            false => match request.wait_time > default_wait_time {
+                true => request.wait_time,
+                false => default_wait_time,
             },
-            false => default_wait_time,
         };
     }
 
