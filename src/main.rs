@@ -130,7 +130,7 @@ async fn main() {
         .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
-        .route("/posts/:id", patch(posts::controller::edit_post_by_id))
+        // .route("/posts/:id", patch(posts::controller::edit_post_by_id))
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // media
         .route("/media/generate", post(media::controller::generate_media))

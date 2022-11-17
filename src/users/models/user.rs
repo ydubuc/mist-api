@@ -21,7 +21,7 @@ pub struct User {
     pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: String,
-    pub ink: i64,
+    pub ink: i32,
     pub updated_at: i64,
     pub created_at: i64,
 }

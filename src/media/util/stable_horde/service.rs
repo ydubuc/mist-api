@@ -88,7 +88,7 @@ async fn generate_media(
         generations.first().unwrap().worker_name
     );
 
-    let mut files_properties = Vec::new();
+    let mut files_properties = Vec::with_capacity(generations.len());
 
     for generation in &generations {
         let Ok(bytes) = base64::decode(&generation.img)

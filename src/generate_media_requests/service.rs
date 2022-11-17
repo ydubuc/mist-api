@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres};
 
 use crate::{
     app::{
@@ -115,6 +115,37 @@ pub async fn edit_generate_media_request_by_id(
     .bind(status.value())
     .bind(id)
     .execute(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(result) => match result.rows_affected() > 0 {
+            true => Ok(()),
+            false => Err(ApiError {
+                code: StatusCode::NOT_FOUND,
+                message: "Failed to update.".to_string(),
+            }),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn edit_generate_media_request_by_id_as_tx(
+    id: &str,
+    status: &GenerateMediaRequestStatus,
+    tx: &mut sqlx::Transaction<'_, Postgres>,
+) -> Result<(), ApiError> {
+    let sqlx_result = sqlx::query(
+        "
+        UPDATE generate_media_requests SET status = $1
+        WHERE id = $2
+        ",
+    )
+    .bind(status.value())
+    .bind(id)
+    .execute(&mut *tx)
     .await;
 
     match sqlx_result {

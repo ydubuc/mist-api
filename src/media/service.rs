@@ -13,7 +13,7 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts, AppState,
+    posts, transactions, users, AppState,
 };
 
 use super::{
@@ -40,6 +40,10 @@ pub async fn generate_media(
             code: StatusCode::BAD_REQUEST,
             message: "Media generator not supported.".to_string(),
         });
+    }
+
+    if let Err(e) = check_user_ink_and_set_pending(dto, claims, &state.pool).await {
+        return Err(e);
     }
 
     match generate_media_requests::service::create_request(dto, claims, &state.pool).await {
@@ -81,6 +85,34 @@ pub async fn generate_media(
     }
 }
 
+async fn check_user_ink_and_set_pending(
+    dto: &GenerateMediaDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let required_ink = calculate_ink(dto);
+
+    let user = match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
+        Ok(user) => user,
+        Err(e) => return Err(e),
+    };
+
+    if user.ink < required_ink {
+        return Err(ApiError {
+            code: StatusCode::NOT_ACCEPTABLE,
+            message: "Insufficient ink.".to_string(),
+        });
+    }
+
+    // TODO: i need to set a ink pending value on user to prevent multiple requests being accepted
+
+    Ok(())
+}
+
+fn calculate_ink(dto: &GenerateMediaDto) -> i32 {
+    return 5;
+}
+
 pub async fn on_generate_media_completion(
     generate_media_request: &GenerateMediaRequest,
     status: &GenerateMediaRequestStatus,
@@ -88,33 +120,68 @@ pub async fn on_generate_media_completion(
     claims: &Claims,
     state: &AppState,
 ) -> Result<(), ApiError> {
-    if let Err(e) = generate_media_requests::service::edit_generate_media_request_by_id(
-        &generate_media_request.id,
-        status,
-        &state.pool,
-    )
-    .await
-    {
-        return Err(e);
-    }
-
     let Some(media) = media
     else {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "No media generated.".to_string()
-        });
+        return generate_media_requests::service::edit_generate_media_request_by_id(
+            &generate_media_request.id,
+            status,
+            &state.pool
+        ).await;
     };
 
     if media.len() < 1 {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "No media generated.".to_string(),
-        });
+        return generate_media_requests::service::edit_generate_media_request_by_id(
+            &generate_media_request.id,
+            status,
+            &state.pool,
+        )
+        .await;
     }
 
     if status.value() != GenerateMediaRequestStatus::Completed.value() {
-        return Ok(());
+        return generate_media_requests::service::edit_generate_media_request_by_id(
+            &generate_media_request.id,
+            status,
+            &state.pool,
+        )
+        .await;
+    }
+
+    // TODO: retry making tx multiple times
+    let Ok(mut tx) = state.pool.begin().await
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to begin pool transaction.".to_string(),
+        });
+    };
+
+    let result_1 = generate_media_requests::service::edit_generate_media_request_by_id_as_tx(
+        &generate_media_request.id,
+        status,
+        &mut tx,
+    )
+    .await;
+
+    let ink_cost = calculate_ink(&generate_media_request.generate_media_dto);
+    let result_2 = users::util::ink::update_user_ink_by_id(&claims.id, -ink_cost, &mut tx).await;
+
+    match tx.commit().await {
+        Ok(_) => {
+            if result_1.is_err() || result_2.is_err() {
+                return Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Database transaction did not go through.".to_string(),
+                });
+            }
+        }
+        Err(e) => {
+            tracing::error!(%e);
+            return Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Database transaction failed.".to_string(),
+            });
+        }
     }
 
     devices::service::send_notifications_to_devices_with_user_id(
