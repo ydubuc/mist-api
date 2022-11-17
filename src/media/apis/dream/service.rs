@@ -41,7 +41,7 @@ pub fn spawn_generate_media_task(
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
             }
-            Err(e) => {
+            Err(_) => {
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -63,8 +63,6 @@ async fn generate_media(
     claims: &Claims,
     state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
-    let dream_api_key = &state.envy.dream_api_key;
-
     let dream_responses = await_tasks(dto, state).await;
 
     let mut files_properties = Vec::new();
