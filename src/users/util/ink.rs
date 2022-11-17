@@ -5,7 +5,7 @@ use crate::app::models::api_error::ApiError;
 
 pub async fn update_user_ink_by_id(
     id: &str,
-    amount: i32,
+    amount: i64,
     tx: &mut sqlx::Transaction<'_, Postgres>,
 ) -> Result<(), ApiError> {
     println!("update_user_ink_by_id");

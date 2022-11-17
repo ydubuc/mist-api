@@ -109,7 +109,7 @@ async fn check_user_ink_and_set_pending(
     Ok(())
 }
 
-fn calculate_ink(dto: &GenerateMediaDto) -> i32 {
+fn calculate_ink(dto: &GenerateMediaDto) -> i64 {
     return 5;
 }
 
