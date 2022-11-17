@@ -6,11 +6,12 @@ use crate::app::models::api_error::ApiError;
 pub async fn update_user_ink_by_id(
     id: &str,
     amount: i64,
+    increase: bool,
     tx: &mut sqlx::Transaction<'_, Postgres>,
 ) -> Result<(), ApiError> {
     println!("update_user_ink_by_id");
 
-    let sql = match amount >= 0 {
+    let sql = match increase {
         true => {
             r#"
             UPDATE users

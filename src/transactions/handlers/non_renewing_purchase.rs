@@ -40,7 +40,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
                 });
             };
 
-            let result_1 = users::util::ink::update_user_ink_by_id(&user_id, 50, &mut tx).await;
+            let result_1 =
+                users::util::ink::update_user_ink_by_id(&user_id, 50, true, &mut tx).await;
             println!("complete update_user_ink_by_id");
             let result_2 = service::create_transaction(webhook, &mut tx).await;
             println!("complete update_user_ink_by_id");

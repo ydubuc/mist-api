@@ -164,7 +164,8 @@ pub async fn on_generate_media_completion(
     .await;
 
     let ink_cost = calculate_ink(&generate_media_request.generate_media_dto);
-    let result_2 = users::util::ink::update_user_ink_by_id(&claims.id, -ink_cost, &mut tx).await;
+    let result_2 =
+        users::util::ink::update_user_ink_by_id(&claims.id, ink_cost, false, &mut tx).await;
 
     match tx.commit().await {
         Ok(_) => {
