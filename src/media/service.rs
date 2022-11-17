@@ -44,6 +44,11 @@ pub async fn generate_media(
         });
     }
 
+    match is_valid_size(dto) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
     let get_generate_media_request_result =
         get_generate_media_request(dto, claims, &state.pool).await;
     let Ok(generate_media_request) = get_generate_media_request_result
@@ -51,27 +56,19 @@ pub async fn generate_media(
         return Err(get_generate_media_request_result.unwrap_err());
     };
 
+    let req = generate_media_request.clone();
+    let claims = claims.clone();
+    let state = state.clone();
+
     match dto.generator.as_ref() {
-        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(
-            generate_media_request.clone(),
-            claims.clone(),
-            state.clone(),
-        ),
-        MediaGenerator::DREAM => dream::service::spawn_generate_media_task(
-            generate_media_request.clone(),
-            claims.clone(),
-            state.clone(),
-        ),
-        MediaGenerator::STABLE_HORDE => stable_horde::service::spawn_generate_media_task(
-            generate_media_request.clone(),
-            claims.clone(),
-            state.clone(),
-        ),
-        MediaGenerator::MIST_STABILITY => mist_stability::service::spawn_generate_media_task(
-            generate_media_request.clone(),
-            claims.clone(),
-            state.clone(),
-        ),
+        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::DREAM => dream::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::STABLE_HORDE => {
+            stable_horde::service::spawn_generate_media_task(req, claims, state)
+        }
+        MediaGenerator::MIST_STABILITY => {
+            mist_stability::service::spawn_generate_media_task(req, claims, state)
+        }
         // this should not happen because it should be validated above
         _ => {
             return Err(ApiError {
@@ -82,6 +79,28 @@ pub async fn generate_media(
     }
 
     Ok(generate_media_request)
+}
+
+fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
+    let is_valid = match dto.generator.as_ref() {
+        MediaGenerator::DALLE => dalle::service::is_valid_size(&dto.width, &dto.height),
+        MediaGenerator::DREAM => dream::service::is_valid_size(&dto.width, &dto.height),
+        MediaGenerator::STABLE_HORDE => {
+            stable_horde::service::is_valid_size(&dto.width, &dto.height)
+        }
+        MediaGenerator::MIST_STABILITY => {
+            mist_stability::service::is_valid_size(&dto.width, &dto.height)
+        }
+        _ => false,
+    };
+
+    match is_valid {
+        true => Ok(()),
+        false => Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "This size format is currently not supported".to_string(),
+        }),
+    }
 }
 
 async fn get_generate_media_request(

@@ -113,10 +113,7 @@ async fn dalle_generate_images(
     dto: &GenerateMediaDto,
     openai_api_key: &str,
 ) -> Result<DalleGenerateImagesResponse, ApiError> {
-    let input_spec = match provide_input_spec(dto) {
-        Ok(input_spec) => input_spec,
-        Err(e) => return Err(e),
-    };
+    let input_spec = provide_input_spec(dto);
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -143,29 +140,15 @@ async fn dalle_generate_images(
     }
 }
 
-fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
+fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     let size = format!("{}x{}", dto.width, dto.height);
 
-    let valid_sizes = [
-        "256x256".to_string(),
-        "512x512".to_string(),
-        "1024x1024".to_string(),
-    ];
-
-    if !valid_sizes.contains(&size) {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: ["Size must be one of: ", &valid_sizes.join(",")].concat(),
-        });
-    }
-
-    Ok(InputSpec {
+    InputSpec {
         prompt: dto.prompt.to_string(),
         n: dto.number,
         size,
         response_format: "b64_json".to_string(),
-        // response_format: "url".to_string(),
-    })
+    }
 }
 
 async fn parse_response_to_dalle_generate_images_response(
@@ -184,4 +167,20 @@ async fn parse_response_to_dalle_generate_images_response(
             Err(DefaultApiError::InternalServerError.value())
         }
     }
+}
+
+pub fn is_valid_size(width: &u16, height: &u16) -> bool {
+    let valid_widths: [u16; 1] = [512];
+
+    if !valid_widths.contains(width) {
+        return false;
+    }
+
+    let valid_heights: [u16; 1] = [512];
+
+    if !valid_heights.contains(height) {
+        return false;
+    }
+
+    return true;
 }

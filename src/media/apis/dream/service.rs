@@ -232,10 +232,7 @@ async fn update_task_by_id(
     dto: &GenerateMediaDto,
     dream_api_key: &str,
 ) -> Result<DreamTaskResponse, ApiError> {
-    let input_spec = match provide_input_spec(dto) {
-        Ok(input_spec) => input_spec,
-        Err(e) => return Err(e),
-    };
+    let input_spec = provide_input_spec(dto);
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -261,37 +258,14 @@ async fn update_task_by_id(
     }
 }
 
-fn provide_input_spec(dto: &GenerateMediaDto) -> Result<InputSpec, ApiError> {
-    let size = (dto.width, dto.height);
-
-    let valid_sizes = [
-        (512, 512),
-        (512, 1024),
-        (1024, 512),
-        (640, 1024),
-        (1024, 640),
-    ];
-
-    if !valid_sizes.contains(&size) {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: [
-                "Size must be one of: ",
-                &valid_sizes
-                    .map(|val| format!("{}x{}", val.0, val.1))
-                    .join(", "),
-            ]
-            .concat(),
-        });
-    }
-
-    Ok(InputSpec {
+fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
+    InputSpec {
         style: 3, // TODO: add style to dto
         prompt: dto.prompt.to_string(),
         target_image_weight: None, // TODO: add image weight to dto
         width: Some(dto.width),
         height: Some(dto.height),
-    })
+    }
 }
 
 async fn parse_response_to_dream_task_response(
@@ -310,4 +284,20 @@ async fn parse_response_to_dream_task_response(
             Err(DefaultApiError::InternalServerError.value())
         }
     }
+}
+
+pub fn is_valid_size(width: &u16, height: &u16) -> bool {
+    let valid_widths: [u16; 3] = [512, 640, 1024];
+
+    if !valid_widths.contains(width) {
+        return false;
+    }
+
+    let valid_heights: [u16; 3] = [512, 640, 1024];
+
+    if !valid_heights.contains(height) {
+        return false;
+    }
+
+    return true;
 }
