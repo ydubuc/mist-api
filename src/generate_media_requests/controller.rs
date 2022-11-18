@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Query, State},
     headers::{authorization::Bearer, Authorization},
@@ -14,7 +16,7 @@ use super::{
 };
 
 pub async fn get_generate_media_requests(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetGenerateMediaRequestsFilterDto>,
 ) -> Result<Json<Vec<GenerateMediaRequest>>, ApiError> {

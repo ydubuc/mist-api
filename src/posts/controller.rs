@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, Query, State},
     headers::{authorization::Bearer, Authorization},
@@ -22,7 +24,7 @@ use super::{
 };
 
 pub async fn create_post(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<CreatePostDto>,
 ) -> Result<Json<Post>, ApiError> {
@@ -45,7 +47,7 @@ pub async fn create_post(
 }
 
 pub async fn get_posts(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetPostsFilterDto>,
 ) -> Result<Json<Vec<Post>>, ApiError> {
@@ -68,7 +70,7 @@ pub async fn get_posts(
 }
 
 pub async fn get_post_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Post>, ApiError> {
@@ -82,7 +84,7 @@ pub async fn get_post_by_id(
 }
 
 pub async fn edit_post_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditPostDto>,
@@ -106,7 +108,7 @@ pub async fn edit_post_by_id(
 }
 
 pub async fn report_post_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
@@ -117,7 +119,7 @@ pub async fn report_post_by_id(
 }
 
 pub async fn delete_post_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {

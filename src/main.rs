@@ -33,7 +33,7 @@ mod users;
 pub struct AppState {
     pub pool: PgPool,
     pub b2: B2,
-    pub envy: Arc<Envy>,
+    pub envy: Envy,
 }
 
 #[tokio::main]
@@ -75,14 +75,11 @@ async fn main() {
 
     println!("logged in to backblaze");
 
-    let state = AppState {
-        pool,
-        b2,
-        envy: Arc::new(envy),
-    };
+    let state = Arc::new(AppState { pool, b2, envy });
 
     // app
-    let app = Router::with_state(state)
+    // let app = Router::with_state(state)
+    let app = Router::new()
         .route("/", get(app::controller::get_root))
         // TRANSACTIONS
         .route(
@@ -119,7 +116,7 @@ async fn main() {
         .route("/users/me", get(users::controller::get_user_from_request))
         .route("/users/:id", get(users::controller::get_user_by_id))
         .route("/users/:id", patch(users::controller::edit_user_by_id))
-        // posts
+        // POSTS
         // .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
@@ -140,7 +137,7 @@ async fn main() {
             "/generate-media-requests",
             get(generate_media_requests::controller::get_generate_media_requests),
         )
-        // layers
+        // LAYERS
         .layer(cors)
         .layer(
             ServiceBuilder::new()
@@ -149,7 +146,8 @@ async fn main() {
                 }))
                 .layer(BufferLayer::new(1024))
                 .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
-        );
+        )
+        .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("listening on {}", addr);

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Multipart, Path, Query, State},
     headers::{authorization::Bearer, Authorization},
@@ -20,7 +22,7 @@ use super::{
 };
 
 pub async fn generate_media(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<GenerateMediaDto>,
 ) -> Result<Json<GenerateMediaRequest>, ApiError> {
@@ -43,7 +45,7 @@ pub async fn generate_media(
 }
 
 pub async fn import_media(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     multipart: Multipart,
 ) -> Result<Json<Vec<Media>>, ApiError> {
@@ -57,7 +59,7 @@ pub async fn import_media(
 }
 
 pub async fn get_media(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetMediaFilterDto>,
 ) -> Result<Json<Vec<Media>>, ApiError> {
@@ -80,7 +82,7 @@ pub async fn get_media(
 }
 
 pub async fn get_media_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Media>, ApiError> {
@@ -94,7 +96,7 @@ pub async fn get_media_by_id(
 }
 
 pub async fn delete_media_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {

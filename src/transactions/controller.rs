@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::State,
     headers::{authorization::Bearer, Authorization},
@@ -13,7 +15,7 @@ use crate::{
 use super::{service, structs::revenue_cat_webbook::RevenueCatWebhook};
 
 pub async fn handle_webhook(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(webhook): JsonFromRequest<RevenueCatWebhook>,
 ) -> Result<(), ApiError> {

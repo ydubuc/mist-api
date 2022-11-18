@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, State},
     headers::{authorization::Bearer, Authorization},
@@ -13,7 +15,7 @@ use crate::{
 use super::{dtos::edit_device_dto::EditDeviceDto, models::device::Device, service};
 
 pub async fn edit_device_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditDeviceDto>,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, Query, State},
     headers::{authorization::Bearer, Authorization},
@@ -19,7 +21,7 @@ use super::{
 };
 
 pub async fn get_users(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetUsersFilterDto>,
 ) -> Result<Json<Vec<User>>, ApiError> {
@@ -42,7 +44,7 @@ pub async fn get_users(
 }
 
 pub async fn get_user_from_request(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<User>, ApiError> {
     match Claims::from_header(authorization, &state.envy.jwt_secret) {
@@ -55,7 +57,7 @@ pub async fn get_user_from_request(
 }
 
 pub async fn get_user_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<User>, ApiError> {
@@ -69,7 +71,7 @@ pub async fn get_user_by_id(
 }
 
 pub async fn edit_user_by_id(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditUserDto>,

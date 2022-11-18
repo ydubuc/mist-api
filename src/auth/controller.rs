@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Query, State},
     headers::{authorization::Bearer, Authorization},
@@ -31,7 +33,7 @@ use super::{
 };
 
 pub async fn register(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<RegisterDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
     if let Err(e) = dto.validate() {
@@ -48,7 +50,7 @@ pub async fn register(
 }
 
 pub async fn login(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<LoginDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
     if let Err(e) = dto.validate() {
@@ -65,7 +67,7 @@ pub async fn login(
 }
 
 pub async fn request_email_update_mail(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<RequestEmailUpdateDto>,
 ) -> Result<(), ApiError> {
@@ -76,7 +78,7 @@ pub async fn request_email_update_mail(
 }
 
 pub async fn process_email_edit(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
     let access_token = authorization.0.token();
@@ -84,7 +86,7 @@ pub async fn process_email_edit(
 }
 
 pub async fn request_password_update_mail(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<RequestPasswordUpdateDto>,
 ) -> Result<(), ApiError> {
     if let Err(e) = dto.validate() {
@@ -98,7 +100,7 @@ pub async fn request_password_update_mail(
 }
 
 pub async fn process_password_edit(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditPasswordDto>,
 ) -> Result<(), ApiError> {
@@ -114,7 +116,7 @@ pub async fn process_password_edit(
 }
 
 pub async fn get_devices(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     Query(dto): Query<GetDevicesFilterDto>,
 ) -> Result<Json<Vec<Device>>, ApiError> {
@@ -137,7 +139,7 @@ pub async fn get_devices(
 }
 
 pub async fn refresh(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<RefreshDeviceDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
     if let Err(e) = dto.validate() {
@@ -154,7 +156,7 @@ pub async fn refresh(
 }
 
 pub async fn logout(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<LogoutDeviceDto>,
 ) -> Result<(), ApiError> {
@@ -174,7 +176,7 @@ pub async fn logout(
 }
 
 pub async fn delete_account(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<DeleteAccountDto>,
 ) -> Result<(), ApiError> {
