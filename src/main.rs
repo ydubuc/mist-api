@@ -26,6 +26,7 @@ mod generate_media_requests;
 mod mail;
 mod media;
 mod posts;
+mod reports;
 mod transactions;
 mod users;
 
@@ -120,7 +121,7 @@ async fn main() {
         .route("/users/:id", get(users::controller::get_user_by_id))
         .route("/users/:id", patch(users::controller::edit_user_by_id))
         // posts
-        .route("/posts", post(posts::controller::create_post))
+        // .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
         // .route("/posts/:id", patch(posts::controller::edit_post_by_id))
@@ -135,6 +136,11 @@ async fn main() {
         .route(
             "/generate-media-requests",
             get(generate_media_requests::controller::get_generate_media_requests),
+        )
+        // reports
+        .route(
+            "/reports/posts/:id",
+            post(reports::post_reports::controller::report_post_by_id),
         )
         // layers
         .layer(cors)
