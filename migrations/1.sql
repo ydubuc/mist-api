@@ -10,6 +10,7 @@ CREATE TABLE users(
     password_hash VARCHAR(255) NOT NULL,
     ink INTEGER NOT NULL,
     ink_pending INTEGER NOT NULL,
+    delete_pending BOOLEAN NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );
@@ -71,6 +72,7 @@ CREATE INDEX generate_media_requests_created_at ON generate_media_requests (crea
 
 CREATE TABLE transactions(
     id VARCHAR(255) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
     data JSONB NOT NULL,
     created_at BIGINT NOT NULL
 );

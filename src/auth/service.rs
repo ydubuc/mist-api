@@ -55,6 +55,13 @@ pub async fn register(dto: &RegisterDto, state: &AppState) -> Result<AccessInfo,
 pub async fn login(dto: &LoginDto, state: &AppState) -> Result<AccessInfo, ApiError> {
     match users::service::get_user_by_login_dto_as_admin(dto, &state.pool).await {
         Ok(user) => {
+            if user.delete_pending {
+                return Err(ApiError {
+                    code: StatusCode::UNAUTHORIZED,
+                    message: "This user is being deleted.".to_string(),
+                });
+            }
+
             let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
             else {
                 return Err(DefaultApiError::InternalServerError.value());
@@ -90,6 +97,13 @@ pub async fn request_email_update_mail(
     else {
         return Err(user_result.unwrap_err());
     };
+
+    if user.delete_pending {
+        return Err(ApiError {
+            code: StatusCode::UNAUTHORIZED,
+            message: "This user is being deleted.".to_string(),
+        });
+    }
 
     if let Ok(_) = users::service::get_user_by_email_as_admin(&dto.email, &state.pool).await {
         return Err(ApiError {
@@ -238,9 +252,7 @@ pub async fn delete_account(
                 });
             }
 
-            // FIXME: cloud bucket is not currently being deleted
-
-            match users::service::delete_user_by_id_as_admin(&claims.id, pool).await {
+            match users::service::set_user_delete_pending_by_id_as_admin(&claims.id, pool).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e),
             }

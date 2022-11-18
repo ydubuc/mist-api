@@ -379,12 +379,16 @@ pub async fn edit_user_password_by_id_as_admin(
     }
 }
 
-pub async fn delete_user_by_id_as_admin(id: &str, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn set_user_delete_pending_by_id_as_admin(
+    id: &str,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
-        DELETE FROM users WHERE id = $1
+        UPDATE users SET delete_pending = $1 WHERE id = $2
         ",
     )
+    .bind(true)
     .bind(id)
     .execute(pool)
     .await;

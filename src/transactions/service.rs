@@ -62,17 +62,19 @@ pub fn retrieve_user_id(
 
 pub async fn create_transaction(
     webhook: RevenueCatWebhook,
+    user_id: &str,
     tx: &mut Transaction<'_, Postgres>,
 ) -> Result<(), ApiError> {
     println!("create_transaction");
 
     let sql = r#"
-    INSERT INTO transactions (id, data, created_at)
-    VALUES ($1, $2, $3)
+    INSERT INTO transactions (id, user_id, data, created_at)
+    VALUES ($1, $2, $3, $4)
     "#;
 
     let sqlx_result = sqlx::query(&sql)
         .bind(Uuid::new_v4().to_string())
+        .bind(user_id)
         .bind(webhook.event)
         .bind(time::current_time_in_secs() as i64)
         .execute(&mut *tx)

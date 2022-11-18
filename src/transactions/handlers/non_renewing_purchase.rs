@@ -63,7 +63,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         media::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
     println!("complete update_user_ink_by_id");
 
-    let result_2 = service::create_transaction(webhook, &mut tx).await;
+    let result_2 = service::create_transaction(webhook, &user_id, &mut tx).await;
     println!("complete update_user_ink_by_id");
 
     match tx.commit().await {

@@ -24,6 +24,8 @@ pub struct User {
     pub ink: i64,
     #[serde(skip_serializing)]
     pub ink_pending: i64,
+    #[serde(skip_serializing)]
+    pub delete_pending: bool,
     pub updated_at: i64,
     pub created_at: i64,
 }
@@ -44,6 +46,7 @@ impl User {
             password_hash: hash,
             ink: 0,
             ink_pending: 0,
+            delete_pending: false,
             updated_at: current_time as i64,
             created_at: current_time as i64,
         };
