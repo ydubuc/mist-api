@@ -122,7 +122,7 @@ pub async fn send_notifications_to_devices_with_user_id(
                 .await;
             }
         }
-        Err(e) => {
+        Err(_) => {
             // quietly fail :(
         }
     }

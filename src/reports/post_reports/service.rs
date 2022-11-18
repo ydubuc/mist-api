@@ -1,6 +1,5 @@
 use reqwest::StatusCode;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::{
     app::{
@@ -20,7 +19,7 @@ pub async fn report_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
         VALUES ($1, $2, $3)
         ",
     )
-    .bind(Uuid::new_v4().to_string())
+    .bind(&[id, &claims.id].concat())
     .bind(id)
     .bind(&claims.id)
     .execute(pool)

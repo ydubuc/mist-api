@@ -1,4 +1,4 @@
-// #![allow(dead_code)]
+#![allow(dead_code)]
 // #![allow(unused_variables)]
 
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};

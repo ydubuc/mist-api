@@ -363,7 +363,7 @@ pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>
 
 pub async fn get_media(
     dto: &GetMediaFilterDto,
-    claims: &Claims,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
     let sql_result = dto.to_sql();

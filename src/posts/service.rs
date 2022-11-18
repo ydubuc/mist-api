@@ -126,7 +126,7 @@ pub async fn create_post_with_media(
 
 pub async fn get_posts(
     dto: &GetPostsFilterDto,
-    claims: &Claims,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Post>, ApiError> {
     let sql_result = dto.to_sql();
@@ -156,7 +156,7 @@ pub async fn get_posts(
     }
 }
 
-pub async fn get_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
+pub async fn get_post_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Post, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Post>(
         r#"
         SELECT posts.*,

@@ -88,7 +88,7 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
 
 pub async fn get_users(
     dto: &GetUsersFilterDto,
-    claims: &Claims,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<User>, ApiError> {
     let sql_result = dto.to_sql();
@@ -117,7 +117,7 @@ pub async fn get_users(
     }
 }
 
-pub async fn get_user_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<User, ApiError> {
+pub async fn get_user_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<User, ApiError> {
     return get_user_by_id_as_admin(id, pool).await;
 }
 

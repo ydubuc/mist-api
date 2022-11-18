@@ -46,7 +46,7 @@ CREATE INDEX posts_updated_at ON posts (updated_at);
 CREATE INDEX posts_created_at ON posts (created_at);
 
 CREATE TABLE post_reports(
-    id VARCHAR(255) PRIMARY KEY,
+    id VARCHAR(510) PRIMARY KEY,
     post_id VARCHAR(255) REFERENCES posts(id) ON DELETE CASCADE,
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE
 );

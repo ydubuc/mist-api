@@ -71,7 +71,7 @@ pub async fn create_request(
 
 pub async fn get_generate_media_requests(
     dto: &GetGenerateMediaRequestsFilterDto,
-    claims: &Claims,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<GenerateMediaRequest>, ApiError> {
     let sql_result = dto.to_sql();

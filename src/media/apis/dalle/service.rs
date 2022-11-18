@@ -40,7 +40,7 @@ pub fn spawn_generate_media_task(
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
             }
-            Err(e) => {
+            Err(_) => {
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
