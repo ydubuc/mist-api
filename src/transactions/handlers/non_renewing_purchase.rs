@@ -5,7 +5,8 @@ use crate::{
     media::{self, util::ink::dtos::edit_user_dto::EditUserInkDto},
     transactions::{
         handlers::{
-            errors::HandlersApiError, INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_SMALL_AMOUNT,
+            errors::HandlersApiError, INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_MEGA_AMOUNT,
+            INK_SMALL_AMOUNT,
         },
         service,
         structs::{
@@ -38,6 +39,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         "com.greenknightlabs.mist.ios.ink_small.111622" => INK_SMALL_AMOUNT,
         "com.greenknightlabs.mist.ios.ink_medium.111622" => INK_MEDIUM_AMOUNT,
         "com.greenknightlabs.mist.ios.ink_large.111622" => INK_LARGE_AMOUNT,
+        "com.greenknightlabs.mist.ios.ink_mega.111622" => INK_MEGA_AMOUNT,
         _ => {
             tracing::error!("Not implemented product_id: {}", event.product_id);
             return Err(HandlersApiError::ProductNotImplemented.value());
@@ -59,16 +61,16 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         ink_pending_decrease: None,
     };
 
-    let result_1 =
+    let edit_user_ink_by_id_result =
         media::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
     println!("complete update_user_ink_by_id");
 
-    let result_2 = service::create_transaction(webhook, &user_id, &mut tx).await;
+    let create_transaction_result = service::create_transaction(webhook, &user_id, &mut tx).await;
     println!("complete update_user_ink_by_id");
 
     match tx.commit().await {
         Ok(_) => {
-            return if result_1.is_ok() && result_2.is_ok() {
+            return if edit_user_ink_by_id_result.is_ok() && create_transaction_result.is_ok() {
                 println!("tx ok");
                 Ok(())
             } else {

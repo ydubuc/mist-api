@@ -26,7 +26,6 @@ mod generate_media_requests;
 mod mail;
 mod media;
 mod posts;
-mod reports;
 mod transactions;
 mod users;
 
@@ -85,12 +84,12 @@ async fn main() {
     // app
     let app = Router::with_state(state)
         .route("/", get(app::controller::get_root))
-        // transactions
+        // TRANSACTIONS
         .route(
             "/transactions",
             post(transactions::controller::handle_webhook),
         )
-        // auth
+        // AUTH
         .route("/auth/register", post(auth::controller::register))
         .route("/auth/login", post(auth::controller::login))
         .route(
@@ -110,12 +109,12 @@ async fn main() {
         .route("/auth/devices", get(auth::controller::get_devices))
         .route("/auth/logout", post(auth::controller::logout))
         .route("/auth/delete", post(auth::controller::delete_account))
-        // devices
+        // DEVICES
         .route(
             "/devices/:id",
             patch(devices::controller::edit_device_by_id),
         )
-        // users
+        // USERS
         .route("/users", get(users::controller::get_users))
         .route("/users/me", get(users::controller::get_user_from_request))
         .route("/users/:id", get(users::controller::get_user_by_id))
@@ -125,22 +124,21 @@ async fn main() {
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
         // .route("/posts/:id", patch(posts::controller::edit_post_by_id))
+        .route(
+            "/posts/:id/report",
+            post(posts::controller::report_post_by_id),
+        )
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
-        // media
+        // MEDIA
         .route("/media/generate", post(media::controller::generate_media))
         .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
         .route("/media/:id", delete(media::controller::delete_media_by_id))
-        // generate_media_requests
+        // GENERATE_MEDIA_REQUESTS
         .route(
             "/generate-media-requests",
             get(generate_media_requests::controller::get_generate_media_requests),
-        )
-        // reports
-        .route(
-            "/reports/posts/:id",
-            post(reports::post_reports::controller::report_post_by_id),
         )
         // layers
         .layer(cors)

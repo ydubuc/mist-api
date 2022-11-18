@@ -21,9 +21,10 @@ pub struct User {
     pub avatar_url: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<String>>,
     pub ink: i64,
-    #[serde(skip_serializing)]
+    pub ink_sum: i64,
     pub ink_pending: i64,
     #[serde(skip_serializing)]
     pub delete_pending: bool,
@@ -47,6 +48,7 @@ impl User {
             password_hash: hash,
             roles: None,
             ink: 0,
+            ink_sum: 0,
             ink_pending: 0,
             delete_pending: false,
             updated_at: current_time as i64,

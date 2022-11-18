@@ -19,6 +19,8 @@ impl EditUserInkDto {
         if self.ink_increase.is_some() {
             clauses.push(["ink = ink + $", &index.to_string()].concat());
             index += 1;
+            clauses.push(["ink_sum = ink_sum + $", &index.to_string()].concat());
+            index += 1;
         }
         if self.ink_decrease.is_some() {
             clauses.push(["ink = ink - $", &index.to_string()].concat());

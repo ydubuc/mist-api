@@ -42,7 +42,8 @@ pub async fn edit_user_ink_by_id(
     let mut sqlx = sqlx::query(&sql);
 
     if let Some(ink_increase) = dto.ink_increase {
-        sqlx = sqlx.bind(ink_increase);
+        sqlx = sqlx.bind(ink_increase); // users.ink
+        sqlx = sqlx.bind(ink_increase); // users.ink_sum
     }
     if let Some(ink_decrease) = dto.ink_decrease {
         sqlx = sqlx.bind(ink_decrease);
