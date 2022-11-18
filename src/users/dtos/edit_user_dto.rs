@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::app::models::api_error::ApiError;
+use crate::{app::models::api_error::ApiError, users::models::user::User};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct EditUserDto {
@@ -51,7 +51,14 @@ impl EditUserDto {
         }
         if let Some(nullable_fields) = &self.nullify {
             for nullable_field in nullable_fields {
-                clauses.push([&nullable_field, " = NULL"].concat());
+                if !User::nullable_fields().contains(&nullable_field.as_str()) {
+                    return Err(ApiError {
+                        code: StatusCode::BAD_REQUEST,
+                        message: "One or more property cannot be nullified".to_string(),
+                    });
+                } else {
+                    clauses.push([&nullable_field, " = NULL"].concat());
+                }
             }
         }
 
