@@ -36,6 +36,8 @@ CREATE TABLE posts(
     title TEXT NOT NULL,
     content TEXT,
     media JSONB,
+    generate_media_dto JSONB,
+    reports_count SMALLINT NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );

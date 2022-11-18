@@ -56,9 +56,10 @@ pub async fn create_post(
     let sqlx_result = sqlx::query(
         "
         INSERT INTO posts (
-            id, user_id, title, content, media, updated_at, created_at
+            id, user_id, title, content, media,
+            generate_media_dto, reports_count, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ",
     )
     .bind(&post.id)
@@ -66,6 +67,8 @@ pub async fn create_post(
     .bind(&post.title)
     .bind(&post.content)
     .bind(&post.media)
+    .bind(&post.generate_media_dto)
+    .bind(&post.reports_count)
     .bind(&post.updated_at)
     .bind(&post.created_at)
     .execute(pool)
@@ -118,7 +121,7 @@ pub async fn create_post_with_media(
         media_ids: Some(media_ids),
     };
 
-    create_post(&dto, claims, pool).await;
+    let _ = create_post(&dto, claims, pool).await;
 }
 
 pub async fn get_posts(
