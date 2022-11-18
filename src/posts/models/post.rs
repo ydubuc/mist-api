@@ -84,7 +84,7 @@ impl Post {
         };
     }
 
-    pub fn sortable_fields() -> [&'static str; 2] {
-        return ["created_at", "updated_at"];
+    pub fn sortable_fields() -> [&'static str; 3] {
+        return ["reports_count", "created_at", "updated_at"];
     }
 }

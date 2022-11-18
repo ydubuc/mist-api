@@ -172,24 +172,25 @@ pub async fn get_devices_as_admin(
 pub async fn refresh_device_as_admin(
     dto: &RefreshDeviceDto,
     pool: &PgPool,
-) -> Result<(), ApiError> {
-    let sqlx_result = sqlx::query(
+) -> Result<Device, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, Device>(
         "
         UPDATE devices SET updated_at = $1
         WHERE id = $2 AND user_id = $3 AND refresh_token = $4
+        RETURNING *;
         ",
     )
     .bind(time::current_time_in_secs() as i64)
     .bind(&dto.device_id)
     .bind(&dto.user_id)
     .bind(&dto.refresh_token)
-    .execute(pool)
+    .fetch_optional(pool)
     .await;
 
     match sqlx_result {
-        Ok(result) => match result.rows_affected() > 0 {
-            true => Ok(()),
-            false => Err(ApiError {
+        Ok(device) => match device {
+            Some(dev) => Ok(dev),
+            None => Err(ApiError {
                 code: StatusCode::NOT_FOUND,
                 message: "Failed to refresh.".to_string(),
             }),

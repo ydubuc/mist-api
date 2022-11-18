@@ -32,7 +32,7 @@ use super::{
     jwt::{
         enums::pepper_type::PepperType,
         models::claims::Claims,
-        util::{decode_jwt, sign_jwt},
+        util::{decode_jwt, sign_jwt, sign_jwt_with_device},
     },
     models::access_info::AccessInfo,
 };
@@ -76,7 +76,7 @@ pub async fn login(dto: &LoginDto, state: &AppState) -> Result<AccessInfo, ApiEr
 
             match devices::service::create_device_as_admin(&user, &state.pool).await {
                 Ok(device) => Ok(AccessInfo {
-                    access_token: sign_jwt(&user.id, &state.envy.jwt_secret, None),
+                    access_token: sign_jwt(&user, &state.envy.jwt_secret, None),
                     refresh_token: Some(device.refresh_token),
                     device_id: Some(device.id),
                 }),
@@ -122,10 +122,9 @@ pub async fn request_email_update_mail(
         Ok(_) => {
             let envy = state.envy.clone();
             let email = dto.email.clone();
-            let id = claims.id.clone();
 
             tokio::spawn(async move {
-                let access_token = sign_jwt(&id, &envy.jwt_secret, Some(PepperType::EDIT_EMAIL));
+                let access_token = sign_jwt(&user, &envy.jwt_secret, Some(PepperType::EDIT_EMAIL));
                 let template =
                     request_email_update_template(&user, &access_token, &envy.frontend_url);
                 mail::service::send_mail(&email, &template.0, &template.1, &envy).await
@@ -169,7 +168,7 @@ pub async fn request_password_update_mail(
 
             tokio::spawn(async move {
                 let access_token =
-                    sign_jwt(&user.id, &envy.jwt_secret, Some(PepperType::EDIT_PASSWORD));
+                    sign_jwt(&user, &envy.jwt_secret, Some(PepperType::EDIT_PASSWORD));
                 let template =
                     request_password_update_template(&user, &access_token, &envy.frontend_url);
                 mail::service::send_mail(&user.email, &template.0, &template.1, &envy).await
@@ -217,8 +216,8 @@ pub async fn get_devices(
 
 pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessInfo, ApiError> {
     match devices::service::refresh_device_as_admin(dto, &state.pool).await {
-        Ok(_) => Ok(AccessInfo {
-            access_token: sign_jwt(&dto.user_id, &state.envy.jwt_secret, None),
+        Ok(device) => Ok(AccessInfo {
+            access_token: sign_jwt_with_device(device, &state.envy.jwt_secret),
             refresh_token: None,
             device_id: None,
         }),

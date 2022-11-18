@@ -104,6 +104,10 @@ impl GetPostsFilterDto {
         // ORDER BY
         sql.push_str(&[" ORDER BY posts.", &sort_field, " ", &sort_order].concat());
 
+        // if sort_field != "created_at" {
+        //     sql.push_str(", posts.created_at DESC");
+        // }
+
         // LIMIT
         if let Some(limit) = self.limit {
             page_limit = limit;

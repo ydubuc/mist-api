@@ -8,6 +8,7 @@ CREATE TABLE users(
     email_pending VARCHAR(255),
     avatar_url TEXT,
     password_hash VARCHAR(255) NOT NULL,
+    roles TEXT [],
     ink INTEGER NOT NULL,
     ink_pending INTEGER NOT NULL,
     delete_pending BOOLEAN NOT NULL,
@@ -23,6 +24,7 @@ CREATE TABLE devices(
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     refresh_token VARCHAR(255) NOT NULL UNIQUE,
     messaging_token TEXT,
+    roles TEXT [],
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );

@@ -10,6 +10,8 @@ use crate::{app::models::api_error::ApiError, auth::jwt::util::decode_jwt};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Vec<String>>,
     pub iat: u64,
     pub exp: u64,
 }

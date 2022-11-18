@@ -12,6 +12,7 @@ pub struct Device {
     pub refresh_token: String,
     #[serde(skip_serializing)]
     pub messaging_token: Option<String>,
+    pub roles: Option<Vec<String>>,
     pub updated_at: i64,
     pub created_at: i64,
 }
@@ -25,6 +26,7 @@ impl Device {
             user_id: user.id.to_string(),
             refresh_token: Uuid::new_v4().to_string(),
             messaging_token: None,
+            roles: None, // TODO:
             updated_at: current_time,
             created_at: current_time,
         };

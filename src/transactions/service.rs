@@ -32,34 +32,6 @@ pub async fn handle_webhook(webhook: RevenueCatWebhook, state: &AppState) -> Res
     }
 }
 
-pub fn retrieve_user_id(
-    app_user_id: &str,
-    original_app_user_id: &str,
-    aliases: &Vec<String>,
-) -> Option<String> {
-    let anonymous = "$RCAnonymousID:";
-
-    if !app_user_id.starts_with(anonymous) {
-        return Some(app_user_id.to_string());
-    }
-
-    if !original_app_user_id.starts_with(anonymous) {
-        return Some(original_app_user_id.to_string());
-    }
-
-    let user_ids: Vec<String> = aliases
-        .clone()
-        .into_iter()
-        .filter(|alias| !alias.starts_with(anonymous))
-        .collect();
-
-    if user_ids.len() > 0 {
-        return Some(user_ids.first().unwrap().to_string());
-    }
-
-    None
-}
-
 pub async fn create_transaction(
     webhook: RevenueCatWebhook,
     user_id: &str,
@@ -90,4 +62,32 @@ pub async fn create_transaction(
             });
         }
     }
+}
+
+pub fn retrieve_user_id(
+    app_user_id: &str,
+    original_app_user_id: &str,
+    aliases: &Vec<String>,
+) -> Option<String> {
+    let anonymous = "$RCAnonymousID:";
+
+    if !app_user_id.starts_with(anonymous) {
+        return Some(app_user_id.to_string());
+    }
+
+    if !original_app_user_id.starts_with(anonymous) {
+        return Some(original_app_user_id.to_string());
+    }
+
+    let user_ids: Vec<String> = aliases
+        .clone()
+        .into_iter()
+        .filter(|alias| !alias.starts_with(anonymous))
+        .collect();
+
+    if user_ids.len() > 0 {
+        return Some(user_ids.first().unwrap().to_string());
+    }
+
+    None
 }
