@@ -7,7 +7,7 @@ use crate::{
         models::api_error::ApiError,
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
-    auth::jwt::models::claims::Claims,
+    auth::jwt::{enums::roles::Roles, models::claims::Claims},
     media::{self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media},
 };
 
@@ -300,18 +300,28 @@ pub async fn report_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
 }
 
 pub async fn delete_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
-    let sqlx_result = sqlx::query(
-        "
-        DELETE FROM posts
-        WHERE id = $1 AND user_id = $2
-        ",
-    )
-    .bind(id)
-    .bind(&claims.id)
-    .execute(pool)
-    .await;
+    let mut sql = "
+    DELETE FROM posts
+    WHERE id = $1
+    "
+    .to_string();
 
-    match sqlx_result {
+    let is_mod = match &claims.roles {
+        Some(roles) => roles.contains(&Roles::MODERATOR.to_string()),
+        None => false,
+    };
+
+    if !is_mod {
+        sql.push_str(" AND user_id = $2");
+    }
+
+    let mut sqlx = sqlx::query(&sql).bind(id);
+
+    if !is_mod {
+        sqlx = sqlx.bind(&claims.id);
+    }
+
+    match sqlx.execute(pool).await {
         Ok(result) => match result.rows_affected() > 0 {
             true => Ok(()),
             false => Err(PostsApiError::PostNotFound.value()),
