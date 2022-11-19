@@ -26,7 +26,10 @@ impl Device {
             user_id: user.id.to_string(),
             refresh_token: Uuid::new_v4().to_string(),
             messaging_token: None,
-            roles: None, // TODO:
+            roles: match &user.roles {
+                Some(roles) => Some(roles.clone()),
+                None => None,
+            },
             updated_at: current_time,
             created_at: current_time,
         };

@@ -17,7 +17,7 @@ pub fn sign_jwt(user: &User, secret: &str, pepper: Option<&str>) -> String {
     let claims = Claims {
         id: user.id.to_string(),
         roles: match &user.roles {
-            Some(roles) => Some(roles.to_vec()),
+            Some(roles) => Some(roles.clone()),
             None => None,
         },
         iat,
@@ -49,6 +49,8 @@ pub fn sign_jwt_with_device(device: Device, secret: &str) -> String {
         iat,
         exp,
     };
+
+    println!("refreshing device with new claims: {:?}", claims);
 
     // FIXME: unsafe unwrap
     encode(

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
@@ -31,14 +33,15 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
     let sqlx_result = sqlx::query(
         "
         INSERT INTO devices (
-            id, user_id, refresh_token, updated_at, created_at
+            id, user_id, refresh_token, roles, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ",
     )
     .bind(&device.id)
     .bind(&device.user_id)
     .bind(&device.refresh_token)
+    .bind(&device.roles)
     .bind(device.updated_at.to_owned() as i64)
     .bind(device.created_at.to_owned() as i64)
     .execute(pool)
@@ -73,11 +76,11 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
     }
 }
 
-pub async fn send_notifications_to_devices_with_user_id(
-    title: &str,
-    body: &str,
-    id: &str,
-    state: &AppState,
+pub fn send_notifications_to_devices_with_user_id(
+    title: String,
+    body: String,
+    id: String,
+    state: Arc<AppState>,
 ) {
     let dto = GetDevicesFilterDto {
         id: None,
@@ -87,45 +90,47 @@ pub async fn send_notifications_to_devices_with_user_id(
         limit: None,
     };
 
-    match get_devices_as_admin(&dto, &state.pool).await {
-        Ok(devices) => {
-            let mut futures = Vec::new();
+    tokio::spawn(async move {
+        match get_devices_as_admin(&dto, &state.pool).await {
+            Ok(devices) => {
+                let mut futures = Vec::new();
 
-            for device in devices {
-                let Some(messaging_token) = device.messaging_token
+                for device in devices {
+                    let Some(messaging_token) = device.messaging_token
                 else {
                     continue;
                 };
 
-                futures.push(app::util::fcm::send_notification(
-                    messaging_token.to_string(),
-                    title.to_string(),
-                    body.to_string(),
-                    state.envy.fcm_api_key.to_string(),
-                ));
-            }
+                    futures.push(app::util::fcm::send_notification(
+                        messaging_token.to_string(),
+                        title.to_string(),
+                        body.to_string(),
+                        state.envy.fcm_api_key.to_string(),
+                    ));
+                }
 
-            let results = futures::future::join_all(futures).await;
-            let mut failed_messaging_tokens = Vec::new();
+                let results = futures::future::join_all(futures).await;
+                let mut failed_messaging_tokens = Vec::new();
 
-            for result in results {
-                if result.is_err() {
-                    failed_messaging_tokens.push(result.unwrap_err())
+                for result in results {
+                    if result.is_err() {
+                        failed_messaging_tokens.push(result.unwrap_err())
+                    }
+                }
+
+                if failed_messaging_tokens.len() > 0 {
+                    let _ = delete_devices_with_messaging_tokens_as_admin(
+                        failed_messaging_tokens,
+                        &state.pool,
+                    )
+                    .await;
                 }
             }
-
-            if failed_messaging_tokens.len() > 0 {
-                let _ = delete_devices_with_messaging_tokens_as_admin(
-                    failed_messaging_tokens,
-                    &state.pool,
-                )
-                .await;
+            Err(_) => {
+                // quietly fail :(
             }
         }
-        Err(_) => {
-            // quietly fail :(
-        }
-    }
+    });
 }
 
 pub async fn get_devices(

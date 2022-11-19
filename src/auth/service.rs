@@ -215,6 +215,7 @@ pub async fn get_devices(
 }
 
 pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+    println!("refreshing device");
     match devices::service::refresh_device_as_admin(dto, &state.pool).await {
         Ok(device) => Ok(AccessInfo {
             access_token: sign_jwt_with_device(device, &state.envy.jwt_secret),

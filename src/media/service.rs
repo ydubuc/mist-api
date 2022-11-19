@@ -230,15 +230,12 @@ pub async fn on_generate_media_completion(
     }
 
     if let Some(media) = media {
-        // TODO: figure out how to join these futures for better concurrency
-
         devices::service::send_notifications_to_devices_with_user_id(
-            "Mist",
-            "Your images are ready!",
-            &claims.id,
-            state,
-        )
-        .await;
+            "Mist".to_string(),
+            "Your images are ready!".to_string(),
+            claims.id.to_string(),
+            state.clone(),
+        );
 
         posts::service::create_post_with_media(
             &generate_media_request.generate_media_dto,
