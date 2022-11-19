@@ -57,8 +57,7 @@ async fn main() {
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
 
     let pool = PgPoolOptions::new()
-        .max_connections(50)
-        .idle_timeout(Some(Duration::from_secs(60)))
+        .max_connections(49)
         .connect(&envy.database_url)
         .await
         .expect("failed to connect to database");
