@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use reqwest::{header, StatusCode};
@@ -33,7 +33,7 @@ use super::{
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
     claims: Claims,
-    state: AppState,
+    state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bytes::Bytes;
 use reqwest::{header, Response, StatusCode};
 use uuid::Uuid;
@@ -26,7 +28,7 @@ use super::{
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
     claims: Claims,
-    state: AppState,
+    state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;

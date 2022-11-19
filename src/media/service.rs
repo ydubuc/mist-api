@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
 use sqlx::PgPool;
@@ -35,7 +37,7 @@ const SUPPORTED_GENERATORS: [&str; 3] = [
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<GenerateMediaRequest, ApiError> {
     if !SUPPORTED_GENERATORS.contains(&dto.generator.as_ref()) {
         return Err(ApiError {
@@ -169,7 +171,7 @@ pub async fn on_generate_media_completion(
     status: &GenerateMediaRequestStatus,
     media: &Option<Vec<Media>>,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) {
     // TODO: retry making tx multiple times
     let Ok(mut tx) = state.pool.begin().await
@@ -178,12 +180,13 @@ pub async fn on_generate_media_completion(
         return;
     };
 
-    let result_1 = generate_media_requests::service::edit_generate_media_request_by_id_as_tx(
-        &generate_media_request.id,
-        status,
-        &mut tx,
-    )
-    .await;
+    let edit_generate_media_request_by_id_as_tx_result =
+        generate_media_requests::service::edit_generate_media_request_by_id_as_tx(
+            &generate_media_request.id,
+            status,
+            &mut tx,
+        )
+        .await;
 
     let media_generated: u8 = match media {
         Some(media) => media.len() as u8,
@@ -200,26 +203,29 @@ pub async fn on_generate_media_completion(
 
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: None,
-        ink_decrease: if ink_cost_actual > 0 {
-            Some(ink_cost_actual)
-        } else {
-            None
+        ink_decrease: match ink_cost_actual > 0 {
+            true => Some(ink_cost_actual),
+            false => None,
         },
         ink_pending_increase: None,
         ink_pending_decrease: Some(ink_cost),
     };
 
-    let result_2 =
+    let edit_user_ink_by_id_result =
         util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     match tx.commit().await {
         Ok(_) => {
-            if result_1.is_err() || result_2.is_err() {
-                return tracing::error!("Database transaction did not go through.");
+            if edit_generate_media_request_by_id_as_tx_result.is_err()
+                || edit_user_ink_by_id_result.is_err()
+            {
+                tracing::error!("Database transaction did not go through.");
+                return;
             }
         }
         Err(e) => {
-            return tracing::error!(%e);
+            tracing::error!(%e);
+            return;
         }
     }
 
