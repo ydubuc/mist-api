@@ -30,7 +30,7 @@ impl EditUserInkDto {
             clauses.push(["ink_pending = ink_pending + $", &index.to_string()].concat());
             index += 1;
         }
-        if self.ink_decrease.is_some() {
+        if self.ink_pending_decrease.is_some() {
             clauses.push(["ink_pending = ink_pending - $", &index.to_string()].concat());
             index += 1;
         }

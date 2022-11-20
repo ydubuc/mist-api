@@ -63,21 +63,41 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
 
     let edit_user_ink_by_id_result =
         media::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
-    println!("complete update_user_ink_by_id");
+
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_user_ink_by_id_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to edit user ink.".to_string(),
+        });
+    }
 
     let create_transaction_result = service::create_transaction(webhook, &user_id, &mut tx).await;
-    println!("complete update_user_ink_by_id");
+
+    if create_transaction_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back create_transaction_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to save transaction.".to_string(),
+        });
+    }
 
     match tx.commit().await {
-        Ok(_) => {
-            return if edit_user_ink_by_id_result.is_ok() && create_transaction_result.is_ok() {
-                println!("tx ok");
-                Ok(())
-            } else {
-                tracing::error!("database transaction did not complete");
-                return Err(HandlersApiError::TransactionFailure.value());
-            };
-        }
+        Ok(_) => Ok(()),
         Err(e) => {
             tracing::error!(%e);
             return Err(HandlersApiError::TransactionError.value());

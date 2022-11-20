@@ -110,12 +110,12 @@ async fn get_generate_media_request(
     claims: &Claims,
     pool: &PgPool,
 ) -> Result<GenerateMediaRequest, ApiError> {
-    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
-
     let user = match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
         Ok(user) => user,
         Err(e) => return Err(e),
     };
+
+    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
 
     if (user.ink - user.ink_pending) < ink_cost {
         return Err(ApiError {
@@ -140,22 +140,44 @@ async fn get_generate_media_request(
         ink_pending_decrease: None,
     };
 
-    let result_1 =
+    let edit_user_ink_by_id_result =
         util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
-    let result_2 = generate_media_requests::service::create_request(dto, claims, &mut tx).await;
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_user_ink_by_id_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    let create_request_result =
+        generate_media_requests::service::create_request(dto, claims, &mut tx).await;
+
+    if create_request_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back create_request_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
 
     match tx.commit().await {
-        Ok(_) => {
-            if result_1.is_err() || result_2.is_err() {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "An error occurred.".to_string(),
-                });
-            } else {
-                return Ok(result_2.unwrap());
-            }
-        }
+        Ok(_) => return Ok(create_request_result.unwrap()),
         Err(e) => {
             tracing::error!(%e);
             return Err(ApiError {
@@ -188,12 +210,24 @@ pub async fn on_generate_media_completion(
         )
         .await;
 
+    if edit_generate_media_request_by_id_as_tx_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_generate_media_request_by_id_as_tx_result")
+        }
+
+        return;
+    }
+
     let media_generated: u8 = match media {
         Some(media) => media.len() as u8,
         None => 0,
     };
 
-    let ink_cost =
+    let ink_cost_original =
         util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
 
     let ink_cost_actual = util::ink::ink::calculate_ink_cost(
@@ -208,22 +242,28 @@ pub async fn on_generate_media_completion(
             false => None,
         },
         ink_pending_increase: None,
-        ink_pending_decrease: Some(ink_cost),
+        ink_pending_decrease: Some(ink_cost_original),
     };
 
     let edit_user_ink_by_id_result =
         util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
-    match tx.commit().await {
-        Ok(_) => {
-            if edit_generate_media_request_by_id_as_tx_result.is_err()
-                || edit_user_ink_by_id_result.is_err()
-            {
-                tracing::error!("Database transaction did not go through.");
-                return;
-            }
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_user_ink_by_id_result");
         }
+
+        return;
+    }
+
+    match tx.commit().await {
+        Ok(_) => println!("on_generate_media_completion went through (probably?)"),
         Err(e) => {
+            println!("on_generate_media_completion tx commit error");
             tracing::error!(%e);
             return;
         }
