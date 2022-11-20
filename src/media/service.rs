@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::Multipart, http::StatusCode};
 use b2_backblaze::B2;
 use sqlx::PgPool;
@@ -8,54 +10,287 @@ use crate::{
         util::multipart::multipart::get_files_properties,
     },
     auth::jwt::models::claims::Claims,
-    posts::{self, dtos::create_post_dto::CreatePostDto},
+    devices,
+    generate_media_requests::{
+        self, enums::generate_media_request_status::GenerateMediaRequestStatus,
+        models::generate_media_request::GenerateMediaRequest,
+    },
+    posts, users, AppState,
 };
 
 use super::{
+    apis::{dalle, dream, mist_stability, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
-    models::{import_media_response::ImportMediaResponse, media::Media},
-    util::{self, dalle},
+    models::media::Media,
+    util::{self, backblaze, ink::dtos::edit_user_dto::EditUserInkDto},
 };
+
+const SUPPORTED_GENERATORS: [&str; 3] = [
+    MediaGenerator::DALLE,
+    // MediaGenerator::DREAM,
+    MediaGenerator::STABLE_HORDE,
+    MediaGenerator::MIST_STABILITY,
+];
 
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    pool: &PgPool,
-) -> Result<Vec<Media>, ApiError> {
-    match dto.generator.as_ref() {
-        MediaGenerator::DALLE => match dalle::service::generate_media(claims, dto).await {
-            Ok(media) => match upload_media(media, pool).await {
-                Ok(media) => {
-                    for m in &media {
-                        let dto = CreatePostDto {
-                            title: dto.prompt.to_string(),
-                            content: None,
-                            media_id: Some(m.id.to_string()),
-                        };
-
-                        let result = posts::service::create_post(&dto, claims, pool).await;
-                    }
-
-                    Ok(media)
-                }
-                Err(e) => Err(e),
-            },
-            Err(e) => Err(e),
-        },
-        _ => Err(ApiError {
+    state: &Arc<AppState>,
+) -> Result<GenerateMediaRequest, ApiError> {
+    if !SUPPORTED_GENERATORS.contains(&dto.generator.as_ref()) {
+        return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: "Media generator not supported".to_string(),
+            message: "Media generator not supported.".to_string(),
+        });
+    }
+
+    match is_valid_size(dto) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    let get_generate_media_request_result =
+        get_generate_media_request(dto, claims, &state.pool).await;
+    let Ok(generate_media_request) = get_generate_media_request_result
+    else {
+        return Err(get_generate_media_request_result.unwrap_err());
+    };
+
+    let req = generate_media_request.clone();
+    let claims = claims.clone();
+    let state = state.clone();
+
+    match dto.generator.as_ref() {
+        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::DREAM => dream::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::STABLE_HORDE => {
+            stable_horde::service::spawn_generate_media_task(req, claims, state)
+        }
+        MediaGenerator::MIST_STABILITY => {
+            mist_stability::service::spawn_generate_media_task(req, claims, state)
+        }
+        // this should not happen because it should be validated above
+        _ => {
+            return Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Media generator not supported.".to_string(),
+            })
+        }
+    }
+
+    Ok(generate_media_request)
+}
+
+fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
+    let is_valid = match dto.generator.as_ref() {
+        MediaGenerator::DALLE => dalle::service::is_valid_size(&dto.width, &dto.height),
+        MediaGenerator::DREAM => dream::service::is_valid_size(&dto.width, &dto.height),
+        MediaGenerator::STABLE_HORDE => {
+            stable_horde::service::is_valid_size(&dto.width, &dto.height)
+        }
+        MediaGenerator::MIST_STABILITY => {
+            mist_stability::service::is_valid_size(&dto.width, &dto.height)
+        }
+        _ => false,
+    };
+
+    match is_valid {
+        true => Ok(()),
+        false => Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "This size format is currently not supported".to_string(),
         }),
+    }
+}
+
+async fn get_generate_media_request(
+    dto: &GenerateMediaDto,
+    claims: &Claims,
+    pool: &PgPool,
+) -> Result<GenerateMediaRequest, ApiError> {
+    let user = match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
+        Ok(user) => user,
+        Err(e) => return Err(e),
+    };
+
+    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
+
+    if (user.ink - user.ink_pending) < ink_cost {
+        return Err(ApiError {
+            code: StatusCode::NOT_ACCEPTABLE,
+            message: "Not enough ink.".to_string(),
+        });
+    }
+
+    // TODO: retry making tx multiple times
+    let Ok(mut tx) = pool.begin().await
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to begin transaction.".to_string(),
+        });
+    };
+
+    let edit_user_ink_dto = EditUserInkDto {
+        ink_increase: None,
+        ink_decrease: None,
+        ink_pending_increase: Some(ink_cost),
+        ink_pending_decrease: None,
+    };
+
+    let edit_user_ink_by_id_result =
+        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_user_ink_by_id_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    let create_request_result =
+        generate_media_requests::service::create_request(dto, claims, &mut tx).await;
+
+    if create_request_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back create_request_result")
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    match tx.commit().await {
+        Ok(_) => return Ok(create_request_result.unwrap()),
+        Err(e) => {
+            tracing::error!(%e);
+            return Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "An error occurred.".to_string(),
+            });
+        }
+    }
+}
+
+pub async fn on_generate_media_completion(
+    generate_media_request: &GenerateMediaRequest,
+    status: &GenerateMediaRequestStatus,
+    media: &Option<Vec<Media>>,
+    claims: &Claims,
+    state: &Arc<AppState>,
+) {
+    // TODO: retry making tx multiple times
+    let Ok(mut tx) = state.pool.begin().await
+    else {
+        tracing::error!("Failed to begin pool transaction.");
+        return;
+    };
+
+    let edit_generate_media_request_by_id_as_tx_result =
+        generate_media_requests::service::edit_generate_media_request_by_id_as_tx(
+            &generate_media_request.id,
+            status,
+            &mut tx,
+        )
+        .await;
+
+    if edit_generate_media_request_by_id_as_tx_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_generate_media_request_by_id_as_tx_result")
+        }
+
+        return;
+    }
+
+    let media_generated: u8 = match media {
+        Some(media) => media.len() as u8,
+        None => 0,
+    };
+
+    let ink_cost_original =
+        util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
+
+    let ink_cost_actual = util::ink::ink::calculate_ink_cost(
+        &generate_media_request.generate_media_dto,
+        Some(media_generated),
+    );
+
+    let edit_user_ink_dto = EditUserInkDto {
+        ink_increase: None,
+        ink_decrease: match ink_cost_actual > 0 {
+            true => Some(ink_cost_actual),
+            false => None,
+        },
+        ink_pending_increase: None,
+        ink_pending_decrease: Some(ink_cost_original),
+    };
+
+    let edit_user_ink_by_id_result =
+        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(%e);
+        } else {
+            println!("rolled back edit_user_ink_by_id_result");
+        }
+
+        return;
+    }
+
+    match tx.commit().await {
+        Ok(_) => println!("on_generate_media_completion went through (probably?)"),
+        Err(e) => {
+            println!("on_generate_media_completion tx commit error");
+            tracing::error!(%e);
+            return;
+        }
+    }
+
+    if let Some(media) = media {
+        devices::service::send_notifications_to_devices_with_user_id(
+            "Mist".to_string(),
+            "Your images are ready!".to_string(),
+            claims.id.to_string(),
+            state.clone(),
+        );
+
+        posts::service::create_post_with_media(
+            &generate_media_request.generate_media_dto,
+            &media,
+            &claims,
+            &state.pool,
+        )
+        .await;
     }
 }
 
 pub async fn import_media(
     multipart: Multipart,
     claims: &Claims,
-    pool: &PgPool,
-    b2: &B2,
+    state: &AppState,
 ) -> Result<Vec<Media>, ApiError> {
     let files_properties = get_files_properties(multipart).await;
 
@@ -66,46 +301,62 @@ pub async fn import_media(
         });
     }
 
+    for file_properties in &files_properties {
+        println!("{}", file_properties.mime_type);
+        println!("mime from mime {}", mime::IMAGE.to_string());
+
+        if !file_properties
+            .mime_type
+            .starts_with(&mime::IMAGE.to_string())
+        {
+            return Err(ApiError {
+                code: StatusCode::BAD_REQUEST,
+                message: "Files must be images.".to_string(),
+            });
+        }
+    }
+
+    let mut sizes = Vec::new();
+
+    for file_properties in &files_properties {
+        let Ok(size) = imagesize::blob_size(&file_properties.data)
+        else {
+            return Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to get image size.".to_string()
+            })
+        };
+
+        sizes.push(size);
+    }
+
     let sub_folder = Some(["media/", &claims.id].concat());
 
-    match util::backblaze::service::upload_files(files_properties, &sub_folder, b2).await {
+    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            let mut vec = Vec::new();
-
-            for res in responses {
-                let download_url = [
-                    &b2.downloadUrl,
-                    "/b2api/v1/b2_download_file_by_id?fileId=",
-                    &res.1.file_id,
-                ]
-                .concat();
-
-                let import_media_res = ImportMediaResponse {
-                    id: res.0.to_string(),
-                    download_url,
-                    backblaze_upload_file_response: res.1,
-                };
-
-                vec.push(Media::from_import(&import_media_res, claims));
-            }
-
-            if vec.len() == 0 {
+            if responses.len() == 0 {
                 return Err(ApiError {
                     code: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "Failed to upload files.".to_string(),
                 });
             }
 
-            return upload_media(vec, pool).await;
+            // FIXME: note that if responses are handled in parallel, sizes will not have the right index
+            let media = Media::from_import(&responses, &sizes, claims, &state.b2);
+
+            return upload_media(media, &state.pool).await;
         }
         Err(e) => Err(e),
     }
 }
 
-async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+    let num_properties: u8 = 10;
     let mut sql = "
     INSERT INTO media (
-        id, user_id, url, width, height, mime_type, source, created_at
+        id, user_id, file_id, url,
+        width, height, mime_type,
+        generate_media_dto, source, created_at
     ) "
     .to_string();
 
@@ -117,11 +368,11 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
             sql.push_str(", (");
         }
 
-        for j in 0..8 {
+        for j in 0..num_properties {
             sql.push_str(&["$", &index.to_string()].concat());
             index += 1;
 
-            if j != 7 {
+            if j != num_properties - 1 {
                 sql.push_str(", ");
             }
         }
@@ -134,10 +385,12 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
     for m in &media {
         sqlx = sqlx.bind(&m.id);
         sqlx = sqlx.bind(&m.user_id);
+        sqlx = sqlx.bind(&m.file_id);
         sqlx = sqlx.bind(&m.url);
         sqlx = sqlx.bind(m.width.to_owned() as i16);
         sqlx = sqlx.bind(m.height.to_owned() as i16);
         sqlx = sqlx.bind(&m.mime_type);
+        sqlx = sqlx.bind(m.generate_media_dto.clone().unwrap());
         sqlx = sqlx.bind(&m.source);
         sqlx = sqlx.bind(m.created_at.to_owned() as i64);
     }
@@ -153,7 +406,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
 
 pub async fn get_media(
     dto: &GetMediaFilterDto,
-    claims: &Claims,
+    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
     let sql_result = dto.to_sql();
@@ -189,16 +442,17 @@ pub async fn get_media(
 pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
-        SELECT * FROM media WHERE id = $1
+        SELECT * FROM media WHERE id = $1 AND user_id = $2
         ",
     )
     .bind(id)
+    .bind(&claims.id)
     .fetch_optional(pool)
     .await;
 
     match sqlx_result {
-        Ok(post) => match post {
-            Some(post) => Ok(post),
+        Ok(media) => match media {
+            Some(media) => Ok(media),
             None => Err(MediaApiError::MediaNotFound.value()),
         },
         Err(e) => {
@@ -208,25 +462,63 @@ pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result
     }
 }
 
-pub async fn delete_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
-    let sqlx_result = sqlx::query(
+pub async fn get_media_by_id_as_admin(id: &str, pool: &PgPool) -> Result<Media, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, Media>(
         "
-        DELETE FROM media WHERE id = $1 AND user_id = $2
+        SELECT * FROM media WHERE id = $1
         ",
     )
     .bind(id)
-    .bind(&claims.id)
-    .execute(pool)
+    .fetch_optional(pool)
     .await;
 
     match sqlx_result {
-        Ok(result) => match result.rows_affected() > 0 {
-            true => Ok(()),
-            false => Err(MediaApiError::MediaNotFound.value()),
+        Ok(media) => match media {
+            Some(media) => Ok(media),
+            None => Err(MediaApiError::MediaNotFound.value()),
         },
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
         }
+    }
+}
+
+pub async fn delete_media_by_id(
+    id: &str,
+    claims: &Claims,
+    pool: &PgPool,
+    b2: &B2,
+) -> Result<(), ApiError> {
+    match get_media_by_id(id, claims, pool).await {
+        Ok(media) => {
+            let file_name = ["media/", &claims.id, "/", id].concat();
+            match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
+                Ok(_) => {
+                    let sqlx_result = sqlx::query(
+                        "
+                        DELETE FROM media WHERE id = $1 AND user_id = $2
+                        ",
+                    )
+                    .bind(id)
+                    .bind(&media.user_id)
+                    .execute(pool)
+                    .await;
+
+                    match sqlx_result {
+                        Ok(result) => match result.rows_affected() > 0 {
+                            true => Ok(()),
+                            false => Err(MediaApiError::MediaNotFound.value()),
+                        },
+                        Err(e) => {
+                            tracing::error!(%e);
+                            Err(DefaultApiError::InternalServerError.value())
+                        }
+                    }
+                }
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
     }
 }

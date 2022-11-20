@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Type};
+use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{app::util::time, auth::dtos::register_dto::RegisterDto};
 
-#[derive(Debug, Serialize, Deserialize, FromRow, Type)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
@@ -16,7 +16,18 @@ pub struct User {
     #[serde(skip_serializing)]
     pub email_key: String,
     #[serde(skip_serializing)]
+    pub email_pending: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    #[serde(skip_serializing)]
     pub password_hash: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Vec<String>>,
+    pub ink: i64,
+    pub ink_sum: i64,
+    pub ink_pending: i64,
+    #[serde(skip_serializing)]
+    pub delete_pending: bool,
     pub updated_at: i64,
     pub created_at: i64,
 }
@@ -32,10 +43,21 @@ impl User {
             displayname: dto.username.to_string(),
             email: dto.email.to_string(),
             email_key: dto.email.to_lowercase(),
+            email_pending: None,
+            avatar_url: None,
             password_hash: hash,
+            roles: None,
+            ink: 0,
+            ink_sum: 0,
+            ink_pending: 0,
+            delete_pending: false,
             updated_at: current_time as i64,
             created_at: current_time as i64,
         };
+    }
+
+    pub fn nullable_fields() -> [&'static str; 1] {
+        return ["avatar_url"];
     }
 
     pub fn sortable_fields() -> [&'static str; 2] {

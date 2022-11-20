@@ -2,26 +2,32 @@ use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
 
-use crate::app::{
-    errors::DefaultApiError, models::api_error::ApiError,
-    util::multipart::models::file_properties::FileProperties,
+use crate::{
+    app::{
+        errors::DefaultApiError, models::api_error::ApiError,
+        util::multipart::models::file_properties::FileProperties,
+    },
+    media::util::backblaze::enums::backblaze_delete_file_error_code::BackBlazeDeleteFileErrorCode,
 };
 
-use super::models::{
+use super::structs::{
+    backblaze_delete_file_error::BackblazeDeleteFileError,
+    backblaze_delete_file_response::BackblazeDeleteFileResponse,
     backblaze_upload_file_response::BackblazeUploadFileResponse,
     backblaze_upload_url_response::BackblazeUploadUrlResponse,
 };
 
 pub async fn upload_files(
-    files_properties: Vec<FileProperties>,
+    files_properties: &Vec<FileProperties>,
     sub_folder: &Option<String>,
     b2: &B2,
-) -> Result<Vec<(String, BackblazeUploadFileResponse)>, ApiError> {
-    let client = reqwest::Client::new();
+) -> Result<Vec<BackblazeUploadFileResponse>, ApiError> {
     let mut responses = Vec::new();
 
+    // FIXME: note if doing this operation in parallel, responses will not match indexes of files
+    // consider identifier file properties first
     for file_properties in files_properties {
-        match upload_file(file_properties, sub_folder, &client, b2).await {
+        match upload_file(&file_properties, sub_folder, b2).await {
             Ok(res) => responses.push(res),
             Err(e) => tracing::error!(%e.message),
         }
@@ -31,12 +37,11 @@ pub async fn upload_files(
 }
 
 async fn upload_file(
-    file_properties: FileProperties,
+    file_properties: &FileProperties,
     sub_folder: &Option<String>,
-    client: &reqwest::Client,
     b2: &B2,
-) -> Result<(String, BackblazeUploadFileResponse), ApiError> {
-    let upload_url_result = get_upload_url(&b2.bucketId, b2, client).await;
+) -> Result<BackblazeUploadFileResponse, ApiError> {
+    let upload_url_result = get_upload_url(&b2.bucketId, b2).await;
 
     match upload_url_result {
         Ok(upload_url_res) => {
@@ -61,17 +66,18 @@ async fn upload_file(
             );
             headers.insert("X-Bz-Info-Author", "unknown".to_string().parse().unwrap());
 
+            let client = reqwest::Client::new();
             let result = client
                 .post(upload_url_res.upload_url)
                 .headers(headers)
-                .body(file_properties.data)
+                .body(file_properties.data.clone())
                 .send()
                 .await;
 
             match result {
                 Ok(res) => match res.text().await {
                     Ok(text) => match serde_json::from_str(&text) {
-                        Ok(upload_file_res) => Ok((file_properties.id, upload_file_res)),
+                        Ok(upload_file_res) => Ok(upload_file_res),
                         Err(_) => {
                             tracing::error!(%text);
                             return Err(DefaultApiError::InternalServerError.value());
@@ -92,15 +98,12 @@ async fn upload_file(
     }
 }
 
-async fn get_upload_url(
-    bucket_id: &str,
-    b2: &B2,
-    client: &reqwest::Client,
-) -> Result<BackblazeUploadUrlResponse, ApiError> {
+async fn get_upload_url(bucket_id: &str, b2: &B2) -> Result<BackblazeUploadUrlResponse, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
 
     let url = b2.apiUrl.to_string() + "/b2api/v2/b2_get_upload_url";
+    let client = reqwest::Client::new();
     let result = client
         .post(url)
         .headers(headers)
@@ -130,6 +133,64 @@ async fn get_upload_url(
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn delete_file(
+    file_name: &str,
+    file_id: &str,
+    b2: &B2,
+) -> Result<Option<BackblazeDeleteFileResponse>, ApiError> {
+    let mut headers = header::HeaderMap::new();
+    headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
+
+    let client = reqwest::Client::new();
+    let result = client
+        .post([&b2.apiUrl, "/b2api/v2/b2_delete_file_version"].concat())
+        .headers(headers)
+        .body(
+            json!({
+                "fileName": file_name,
+                "fileId": file_id
+            })
+            .to_string(),
+        )
+        .send()
+        .await;
+
+    match result {
+        Ok(res) => match res.text().await {
+            Ok(text) => match serde_json::from_str(&text) {
+                Ok(delete_file_res) => Ok(Some(delete_file_res)),
+                Err(_) => {
+                    let delete_file_error_result: Result<
+                        BackblazeDeleteFileError,
+                        serde_json::Error,
+                    > = serde_json::from_str(&text);
+
+                    if let Ok(delete_file_error) = delete_file_error_result {
+                        match delete_file_error.code.as_ref() {
+                            BackBlazeDeleteFileErrorCode::FILE_NOT_PRESENT => return Ok(None),
+                            _ => {
+                                tracing::error!(%text);
+                                Err(DefaultApiError::InternalServerError.value())
+                            }
+                        }
+                    } else {
+                        tracing::error!(%text);
+                        Err(DefaultApiError::InternalServerError.value())
+                    }
+                }
+            },
+            Err(e) => {
+                tracing::error!(%e);
+                Err(DefaultApiError::InternalServerError.value())
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            return Err(DefaultApiError::InternalServerError.value());
         }
     }
 }

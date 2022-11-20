@@ -1,0 +1,2 @@
+pub mod request_email_update_template;
+pub mod request_password_update_template;

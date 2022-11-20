@@ -1,46 +1,76 @@
-use std::{
-    env,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use jsonwebtoken::{
     decode, encode, errors::ErrorKind, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
 
-use crate::{app::env::Env, auth::jwt::models::claims::Claims};
+use crate::{
+    app::util::time, auth::jwt::models::claims::Claims, devices::models::device::Device,
+    users::models::user::User,
+};
 
 use super::config::JWT_EXP;
 
-// FIXME: unsafe unwraps
-
-pub fn sign_jwt(uid: &str) -> String {
-    let iat = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+pub fn sign_jwt(user: &User, secret: &str, pepper: Option<&str>) -> String {
+    let mut secret = secret.to_string();
+    let iat = time::current_time_in_secs();
     let exp = iat + JWT_EXP;
 
     let claims = Claims {
-        id: uid.to_string(),
+        id: user.id.to_string(),
+        roles: match &user.roles {
+            Some(roles) => Some(roles.clone()),
+            None => None,
+        },
         iat,
         exp,
     };
-    let secret = env::var(Env::JWT_SECRET).expect("environment: JWT_SECRET missing");
-    let jwt = encode(
+    if let Some(pepper) = pepper {
+        secret = [&secret, pepper].concat();
+    }
+
+    // FIXME: unsafe unwrap
+    encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
-    .unwrap();
-
-    jwt
+    .unwrap()
 }
 
-pub fn decode_jwt(jwt: String) -> Result<Claims, ErrorKind> {
-    let secret = env::var(Env::JWT_SECRET).expect("environment: JWT_SECRET missing");
+pub fn sign_jwt_with_device(device: Device, secret: &str) -> String {
+    let iat = time::current_time_in_secs();
+    let exp = iat + JWT_EXP;
+
+    let claims = Claims {
+        id: device.user_id.to_string(),
+        roles: match device.roles {
+            Some(roles) => Some(roles),
+            None => None,
+        },
+        iat,
+        exp,
+    };
+
+    println!("refreshing device with new claims: {:?}", claims);
+
+    // FIXME: unsafe unwrap
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_ref()),
+    )
+    .unwrap()
+}
+
+pub fn decode_jwt(jwt: String, secret: &str, pepper: Option<&str>) -> Result<Claims, ErrorKind> {
+    let mut secret = secret.to_string();
+
+    if let Some(pepper) = pepper {
+        secret = [&secret, pepper].concat();
+    }
+
     let result = decode::<Claims>(
         &jwt,
-        &DecodingKey::from_secret(&secret.as_ref()),
+        &DecodingKey::from_secret(secret.as_ref()),
         &Validation::new(Algorithm::HS256),
     );
 

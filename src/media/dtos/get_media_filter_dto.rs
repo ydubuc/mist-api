@@ -6,7 +6,6 @@ use crate::{app::models::api_error::ApiError, media::models::media::MEDIA_SORTAB
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct GetMediaFilterDto {
-    #[validate(length(equal = 36, message = "id must be 36 characters."))]
     pub id: Option<String>,
     #[validate(length(equal = 36, message = "id must be 36 characters."))]
     pub user_id: Option<String>,

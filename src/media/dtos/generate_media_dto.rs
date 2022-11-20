@@ -1,12 +1,12 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct GenerateMediaDto {
     #[validate(length(
         min = 1,
-        max = 400,
-        message = "prompt must be between 1 and 400 characters."
+        max = 1000,
+        message = "prompt must be between 1 and 1000 characters."
     ))]
     pub prompt: String,
     #[validate(range(min = 1, max = 4, message = "number must be between 1 and 4."))]
