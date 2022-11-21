@@ -1,7 +1,10 @@
 use reqwest::StatusCode;
 use sqlx::Postgres;
 
-use crate::{app::models::api_error::ApiError, media::dtos::generate_media_dto::GenerateMediaDto};
+use crate::{
+    app::models::api_error::ApiError,
+    media::{dtos::generate_media_dto::GenerateMediaDto, enums::media_generator::MediaGenerator},
+};
 
 use super::dtos::edit_user_dto::EditUserInkDto;
 
@@ -9,7 +12,15 @@ pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) 
     println!("calculating ink cost from dto number: {}", dto.number);
     println!("actual number generated: {:?}", number_generated);
 
-    let ink_per_pixel: f64 = 10.0 / (512.0 * 512.0);
+    let base_ink = match dto.generator.as_ref() {
+        MediaGenerator::DALLE => 5.0,
+        MediaGenerator::DREAM => 10.0,
+        MediaGenerator::MIST_STABILITY => 15.0,
+        MediaGenerator::STABLE_HORDE => 4.0,
+        _ => 10.0,
+    };
+
+    let ink_per_pixel: f64 = base_ink / (512.0 * 512.0);
     println!("ink per pixel {}", ink_per_pixel);
 
     let number = match number_generated {

@@ -36,10 +36,10 @@ pub async fn register(
     State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<RegisterDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
-    if let Err(e) = dto.validate() {
+    if let Err(_) = dto.validate() {
         return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: e.to_string(),
+            message: "Invalid input.".to_string(),
         });
     }
 
@@ -53,10 +53,10 @@ pub async fn login(
     State(state): State<Arc<AppState>>,
     JsonFromRequest(dto): JsonFromRequest<LoginDto>,
 ) -> Result<Json<AccessInfo>, ApiError> {
-    if let Err(e) = dto.validate() {
+    if let Err(_) = dto.validate() {
         return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: e.to_string(),
+            message: "Invalid input.".to_string(),
         });
     }
 
@@ -104,10 +104,10 @@ pub async fn process_password_edit(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditPasswordDto>,
 ) -> Result<(), ApiError> {
-    if let Err(e) = dto.validate() {
+    if let Err(_) = dto.validate() {
         return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: e.to_string(),
+            message: "Invalid input.".to_string(),
         });
     }
 

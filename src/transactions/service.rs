@@ -23,6 +23,16 @@ pub async fn handle_webhook(webhook: RevenueCatWebhook, state: &AppState) -> Res
     match event {
         "NON_RENEWING_PURCHASE" => handlers::non_renewing_purchase::handle(webhook, state).await,
         // "CANCELLATION" => handlers::cancellation::handle(webhook, state).await,
+        "TRANSFER" => {
+            // not handling for now
+            // ink is consumable so an app store account buying ink on different mist accounts
+            // will "transfer" their purchases to the latest mist account on revenuecat
+            // and the ink will be delivered to the new mist account user id as it should
+            // if they go back to their original mist account and buy ink again, the purchases will
+            // "transfer" back to the original mist account user id and the ink should
+            // deliver to the correctly logged in user
+            Ok(())
+        }
         _ => {
             tracing::error!("Not handling webhook event type: {}", event);
             tracing::error!("{:?}", webhook);
