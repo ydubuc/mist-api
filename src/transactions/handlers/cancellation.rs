@@ -7,7 +7,7 @@ use crate::{
         handlers::errors::HandlersApiError,
         service,
         structs::{
-            revenuecat_event_non_renewing::RevenueCatWebhookEventNonRenewing,
+            revenuecat_event_cancellation::RevenueCatWebhookEventCancellation,
             revenuecat_webbook::RevenueCatWebhook,
         },
         INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_MEGA_AMOUNT, INK_SMALL_AMOUNT,
@@ -18,7 +18,7 @@ use crate::{
 pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), ApiError> {
     println!("handling non renewing purchase");
 
-    let event: RevenueCatWebhookEventNonRenewing =
+    let event: RevenueCatWebhookEventCancellation =
         serde_json::from_value(webhook.clone().event).unwrap();
 
     let Some(user_id) = service::retrieve_user_id(
@@ -53,8 +53,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     };
 
     let edit_user_ink_dto = EditUserInkDto {
-        ink_increase: Some(amount),
-        ink_decrease: None,
+        ink_increase: None,
+        ink_decrease: Some(amount),
         ink_pending_increase: None,
         ink_pending_decrease: None,
     };

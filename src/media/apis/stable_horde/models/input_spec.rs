@@ -40,15 +40,9 @@ pub struct InputSpecParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed_variation: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_gfpgan: Option<bool>,
+    pub post_processing: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub karras: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_real_esrgan: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_ldsr: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_upscaling: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]

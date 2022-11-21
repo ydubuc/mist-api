@@ -1,2 +1,3 @@
-pub mod revenue_cat_event_non_renewing;
-pub mod revenue_cat_webbook;
+pub mod revenuecat_event_cancellation;
+pub mod revenuecat_event_non_renewing;
+pub mod revenuecat_webbook;

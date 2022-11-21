@@ -58,6 +58,7 @@ async fn main() {
 
     let pool = PgPoolOptions::new()
         .max_connections(49)
+        .min_connections(1)
         .connect(&envy.database_url)
         .await
         .expect("failed to connect to database");

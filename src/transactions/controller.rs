@@ -12,7 +12,7 @@ use crate::{
     AppState,
 };
 
-use super::{service, structs::revenue_cat_webbook::RevenueCatWebhook};
+use super::{service, structs::revenuecat_webbook::RevenueCatWebhook};
 
 pub async fn handle_webhook(
     State(state): State<Arc<AppState>>,
