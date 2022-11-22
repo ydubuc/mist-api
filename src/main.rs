@@ -39,14 +39,6 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // tracing
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "mist_api=debug".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
     // environment
     let app_env = env::var("APP_ENV").unwrap_or("development".to_string());
     let _ = dotenvy::from_filename(format!(".env.{}", app_env));
@@ -54,6 +46,20 @@ async fn main() {
         Ok(config) => config,
         Err(e) => panic!("{:#?}", e),
     };
+
+    // tracing
+    let log_level = match app_env.as_ref() {
+        "production" => "info",
+        _ => "debug",
+    };
+    let log = format!("mist_api={}", log_level);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            env::var("RUST_LOG").unwrap_or_else(|_| log.into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // properties
     let port = envy.port.to_owned().unwrap_or(3000);

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    app::{models::api_error::ApiError, util::time},
+    app::util::time,
     auth::jwt::models::claims::Claims,
     media::{
         dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,

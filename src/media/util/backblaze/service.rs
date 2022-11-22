@@ -1,5 +1,5 @@
 use b2_backblaze::B2;
-use reqwest::{header, StatusCode};
+use reqwest::header;
 use serde_json::json;
 
 use crate::{
@@ -17,19 +17,19 @@ use super::structs::{
     backblaze_upload_url_response::BackblazeUploadUrlResponse,
 };
 
-pub async fn upload_files(
-    files_properties: &Vec<FileProperties>,
-    sub_folder: &Option<String>,
-    b2: &B2,
-) -> Vec<Result<BackblazeUploadFileResponse, ApiError>> {
-    let mut futures = Vec::with_capacity(files_properties.len());
+// pub async fn upload_files(
+//     files_properties: &Vec<FileProperties>,
+//     sub_folder: &Option<String>,
+//     b2: &B2,
+// ) -> Vec<Result<BackblazeUploadFileResponse, ApiError>> {
+//     let mut futures = Vec::with_capacity(files_properties.len());
 
-    for file_properties in files_properties {
-        futures.push(upload_file(&file_properties, sub_folder, b2));
-    }
+//     for file_properties in files_properties {
+//         futures.push(upload_file(&file_properties, sub_folder, b2));
+//     }
 
-    futures::future::join_all(futures).await
-}
+//     futures::future::join_all(futures).await
+// }
 
 pub async fn upload_file(
     file_properties: &FileProperties,
