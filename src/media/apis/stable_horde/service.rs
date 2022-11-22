@@ -26,7 +26,7 @@ use super::{
     models::input_spec::{InputSpec, InputSpecParams},
     structs::{
         stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
-        stable_horde_get_request_response::StableHordeGetRequestResponse,
+        stable_horde_get_request_response::{StableHordeGeneration, StableHordeGetRequestResponse},
     },
 };
 
@@ -44,7 +44,8 @@ pub fn spawn_generate_media_task(
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
             }
-            Err(_) => {
+            Err(e) => {
+                tracing::error!("{:?}", e);
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -79,52 +80,77 @@ async fn generate_media(
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Stable horde generated no images.".to_string()
+            message: "Stable Horde generated no images.".to_string()
         });
     };
 
-    println!(
+    tracing::debug!(
         "request processed by {}",
         generations.first().unwrap().worker_name
     );
 
-    let mut files_properties = Vec::with_capacity(generations.len());
+    let mut futures = Vec::with_capacity(generations.len());
 
     for generation in &generations {
-        let Ok(bytes) = base64::decode(&generation.img)
-        else {
-            continue;
-        };
-
-        let uuid = Uuid::new_v4().to_string();
-        let file_properties = FileProperties {
-            id: uuid.to_string(),
-            field_name: uuid.to_string(),
-            file_name: uuid.to_string(),
-            mime_type: "image/webp".to_string(),
-            data: Bytes::from(bytes),
-        };
-
-        files_properties.push(file_properties);
+        futures.push(upload_image_and_create_media(
+            dto, generation, claims, state,
+        ));
     }
 
-    let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
-        Ok(responses) => {
-            let media = Media::from_dto(dto, &responses, claims, &state.b2);
+    let results = futures::future::join_all(futures).await;
+    let mut media = Vec::with_capacity(generations.len());
 
-            if media.len() == 0 {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Failed to upload files.".to_string(),
-                });
-            }
-
-            match media::service::upload_media(media, &state.pool).await {
-                Ok(m) => Ok(m),
-                Err(e) => Err(e),
-            }
+    for result in results {
+        if result.is_ok() {
+            media.push(result.unwrap());
         }
+    }
+
+    if media.len() == 0 {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to upload files.".to_string(),
+        });
+    }
+
+    match media::service::upload_media(media, &state.pool).await {
+        Ok(m) => Ok(m),
+        Err(e) => Err(e),
+    }
+}
+
+async fn upload_image_and_create_media(
+    dto: &GenerateMediaDto,
+    stable_horde_generation: &StableHordeGeneration,
+    claims: &Claims,
+    state: &AppState,
+) -> Result<Media, ApiError> {
+    let Ok(bytes) = base64::decode(&stable_horde_generation.img)
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Could not decode image.".to_string()
+        });
+    };
+
+    let uuid = Uuid::new_v4().to_string();
+    let file_properties = FileProperties {
+        id: uuid.to_string(),
+        field_name: uuid.to_string(),
+        file_name: uuid.to_string(),
+        mime_type: "image/webp".to_string(),
+        data: Bytes::from(bytes),
+    };
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+        Ok(response) => Ok(Media::from_dto(
+            dto,
+            Some(&stable_horde_generation.seed),
+            &response,
+            claims,
+            &state.b2,
+        )),
         Err(e) => Err(e),
     }
 }
@@ -145,12 +171,12 @@ async fn await_request_completion(
 
     let Ok(initial_check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
     else {
-        tracing::error!("Failed to get request by id while awaiting stable horde request.");
+        tracing::error!("failed to get request by id while awaiting stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
     if !initial_check_response.is_possible {
-        tracing::error!("Failed to generate stable horde request. Request is not possible.");
+        tracing::error!("failed to generate stable horde request. (request is not possible)");
         return Err(DefaultApiError::InternalServerError.value());
     }
 
@@ -169,14 +195,15 @@ async fn await_request_completion(
     };
 
     while !request.done && !request.faulted && !encountered_error {
-        println!("waiting for request, estimated wait_time: {}", wait_time);
+        tracing::debug!("waiting for request {}, estimated: {}", id, wait_time);
+
         sleep(Duration::from_secs(wait_time.into())).await;
 
-        println!("checking request after waiting for {}", wait_time);
+        tracing::debug!("checking request {} after {}", id, wait_time);
 
         let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
         else {
-            tracing::error!("Failed to get request by id while awaiting stable horde request.");
+            tracing::error!("failed to get request by id while awaiting stable horde request.");
             encountered_error = true;
             continue;
         };
@@ -193,13 +220,13 @@ async fn await_request_completion(
     }
 
     if request.faulted {
-        tracing::error!("Stable horde task finished with error: {:?}", request);
+        tracing::error!("stable horde task finished with error: {:?}", request);
         return Err(DefaultApiError::InternalServerError.value());
     }
 
     let Ok(get_response) = get_request_by_id(&id, false, stable_horde_api_key).await
     else {
-        tracing::error!("Failed to get request full status by id for stable horde request.");
+        tracing::error!("failed to get request full status by id for stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -294,11 +321,8 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
             height: Some(dto.height),
             width: Some(dto.width),
             seed_variation: None,
-            use_gfpgan: Some(true),
+            post_processing: Some(vec!["GFPGAN".to_string()]),
             karras: None,
-            use_real_esrgan: None,
-            use_ldsr: None,
-            use_upscaling: Some(false),
             steps: Some(50),
             n: Some(dto.number),
         }),

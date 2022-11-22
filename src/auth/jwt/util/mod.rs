@@ -50,8 +50,6 @@ pub fn sign_jwt_with_device(device: Device, secret: &str) -> String {
         exp,
     };
 
-    println!("refreshing device with new claims: {:?}", claims);
-
     // FIXME: unsafe unwrap
     encode(
         &Header::default(),

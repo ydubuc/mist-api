@@ -47,7 +47,7 @@ impl EditDeviceDto {
         sql.push_str(&[" AND user_id = '", &claims.id, "'"].concat());
         sql.push_str(" RETURNING *");
 
-        println!("{}", sql);
+        tracing::debug!(sql);
 
         Ok(sql)
     }

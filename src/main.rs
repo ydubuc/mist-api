@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 // #![allow(unused_variables)]
 
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
@@ -16,6 +16,7 @@ use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
+use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
 use crate::app::{envy::Envy, errors::DefaultApiError};
 
@@ -38,9 +39,6 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // tracing
-    tracing_subscriber::fmt::init();
-
     // environment
     let app_env = env::var("APP_ENV").unwrap_or("development".to_string());
     let _ = dotenvy::from_filename(format!(".env.{}", app_env));
@@ -48,6 +46,20 @@ async fn main() {
         Ok(config) => config,
         Err(e) => panic!("{:#?}", e),
     };
+
+    // tracing
+    let log_level = match app_env.as_ref() {
+        "production" => "info",
+        _ => "debug",
+    };
+    let log = format!("mist_api={}", log_level);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            env::var("RUST_LOG").unwrap_or_else(|_| log.into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // properties
     let port = envy.port.to_owned().unwrap_or(3000);
@@ -58,11 +70,12 @@ async fn main() {
 
     let pool = PgPoolOptions::new()
         .max_connections(49)
+        .min_connections(1)
         .connect(&envy.database_url)
         .await
         .expect("failed to connect to database");
 
-    println!("connected to db");
+    tracing::info!("connected to database");
 
     let backblaze_key_id = envy.backblaze_key_id.to_string();
     let backblaze_app_key = envy.backblaze_app_key.to_string();
@@ -72,7 +85,7 @@ async fn main() {
     b2.set_bucket_id(backblaze_bucket_id);
     b2.login().await.expect("failed to login to backblaze");
 
-    println!("logged in to backblaze");
+    tracing::info!("logged in to backblaze");
 
     let state = Arc::new(AppState { pool, b2, envy });
 
@@ -149,7 +162,7 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("listening on {}", addr);
+    tracing::info!("listening on {}", addr);
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())

@@ -6,8 +6,11 @@ use sqlx::PgPool;
 
 use crate::{
     app::{
-        errors::DefaultApiError, models::api_error::ApiError,
-        util::multipart::multipart::get_files_properties,
+        errors::DefaultApiError,
+        models::api_error::ApiError,
+        util::multipart::{
+            models::file_properties::FileProperties, multipart::get_files_properties,
+        },
     },
     auth::jwt::models::claims::Claims,
     devices,
@@ -15,16 +18,18 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts, users, AppState,
+    posts,
+    users::{self, util::ink::dtos::edit_user_ink_dto::EditUserInkDto},
+    AppState,
 };
 
 use super::{
-    apis::{dalle, dream, mist_stability, stable_horde},
+    apis::{dalle, mist_stability, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::{self, backblaze, ink::dtos::edit_user_dto::EditUserInkDto},
+    util::backblaze,
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -64,7 +69,7 @@ pub async fn generate_media(
 
     match dto.generator.as_ref() {
         MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
-        MediaGenerator::DREAM => dream::service::spawn_generate_media_task(req, claims, state),
+        // MediaGenerator::DREAM => dream::service::spawn_generate_media_task(req, claims, state),
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::spawn_generate_media_task(req, claims, state)
         }
@@ -86,7 +91,7 @@ pub async fn generate_media(
 fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
     let is_valid = match dto.generator.as_ref() {
         MediaGenerator::DALLE => dalle::service::is_valid_size(&dto.width, &dto.height),
-        MediaGenerator::DREAM => dream::service::is_valid_size(&dto.width, &dto.height),
+        // MediaGenerator::DREAM => dream::service::is_valid_size(&dto.width, &dto.height),
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::is_valid_size(&dto.width, &dto.height)
         }
@@ -115,7 +120,7 @@ async fn get_generate_media_request(
         Err(e) => return Err(e),
     };
 
-    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
+    let ink_cost = users::util::ink::ink::calculate_ink_cost(&dto, None);
 
     if (user.ink - user.ink_pending) < ink_cost {
         return Err(ApiError {
@@ -141,7 +146,7 @@ async fn get_generate_media_request(
     };
 
     let edit_user_ink_by_id_result =
-        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;
@@ -149,7 +154,7 @@ async fn get_generate_media_request(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {
@@ -167,7 +172,7 @@ async fn get_generate_media_request(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back create_request_result")
+            tracing::warn!("rolled back create_reqest_result");
         }
 
         return Err(ApiError {
@@ -216,7 +221,7 @@ pub async fn on_generate_media_completion(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_generate_media_request_by_id_as_tx_result")
+            tracing::warn!("rolled back edit_generate_media_request_by_id_as_tx_result");
         }
 
         return;
@@ -228,9 +233,9 @@ pub async fn on_generate_media_completion(
     };
 
     let ink_cost_original =
-        util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
+        users::util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
 
-    let ink_cost_actual = util::ink::ink::calculate_ink_cost(
+    let ink_cost_actual = users::util::ink::ink::calculate_ink_cost(
         &generate_media_request.generate_media_dto,
         Some(media_generated),
     );
@@ -246,7 +251,7 @@ pub async fn on_generate_media_completion(
     };
 
     let edit_user_ink_by_id_result =
-        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;
@@ -254,16 +259,15 @@ pub async fn on_generate_media_completion(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result");
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return;
     }
 
     match tx.commit().await {
-        Ok(_) => println!("on_generate_media_completion went through (probably?)"),
+        Ok(_) => {}
         Err(e) => {
-            println!("on_generate_media_completion tx commit error");
             tracing::error!(%e);
             return;
         }
@@ -302,9 +306,6 @@ pub async fn import_media(
     }
 
     for file_properties in &files_properties {
-        println!("{}", file_properties.mime_type);
-        println!("mime from mime {}", mime::IMAGE.to_string());
-
         if !file_properties
             .mime_type
             .starts_with(&mime::IMAGE.to_string())
@@ -316,47 +317,70 @@ pub async fn import_media(
         }
     }
 
-    let mut sizes = Vec::new();
+    let mut futures = Vec::with_capacity(files_properties.len());
 
     for file_properties in &files_properties {
-        let Ok(size) = imagesize::blob_size(&file_properties.data)
-        else {
-            return Err(ApiError {
-                code: StatusCode::INTERNAL_SERVER_ERROR,
-                message: "Failed to get image size.".to_string()
-            })
-        };
-
-        sizes.push(size);
+        futures.push(upload_image_from_import_and_create_media(
+            file_properties,
+            claims,
+            state,
+        ));
     }
 
-    let sub_folder = Some(["media/", &claims.id].concat());
+    let results = futures::future::join_all(futures).await;
+    let mut media = Vec::with_capacity(files_properties.len());
 
-    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
-        Ok(responses) => {
-            if responses.len() == 0 {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Failed to upload files.".to_string(),
-                });
-            }
-
-            // FIXME: note that if responses are handled in parallel, sizes will not have the right index
-            let media = Media::from_import(&responses, &sizes, claims, &state.b2);
-
-            return upload_media(media, &state.pool).await;
+    for result in results {
+        if result.is_ok() {
+            media.push(result.unwrap());
         }
+    }
+
+    if media.len() == 0 {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to upload files.".to_string(),
+        });
+    }
+
+    match upload_media(media, &state.pool).await {
+        Ok(m) => Ok(m),
+        Err(e) => Err(e),
+    }
+}
+
+async fn upload_image_from_import_and_create_media(
+    file_properties: &FileProperties,
+    claims: &Claims,
+    state: &AppState,
+) -> Result<Media, ApiError> {
+    let Ok(size) = imagesize::blob_size(&file_properties.data)
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to get image size.".to_string()
+        });
+    };
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_file(file_properties, &sub_folder, &state.b2).await {
+        Ok(response) => Ok(Media::from_import(&response, &size, claims, &state.b2)),
         Err(e) => Err(e),
     }
 }
 
 pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
-    let num_properties: u8 = 10;
+    // IMPORTANT NOTE
+    // due to the genius who made this (that's me...)
+    // you need to update the num_properties to match the number of
+    // properties inserted into the database
+    let num_properties: u8 = 11;
+
     let mut sql = "
     INSERT INTO media (
         id, user_id, file_id, url,
         width, height, mime_type,
-        generate_media_dto, source, created_at
+        generate_media_dto, seed, source, created_at
     ) "
     .to_string();
 
@@ -390,7 +414,8 @@ pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>
         sqlx = sqlx.bind(m.width.to_owned() as i16);
         sqlx = sqlx.bind(m.height.to_owned() as i16);
         sqlx = sqlx.bind(&m.mime_type);
-        sqlx = sqlx.bind(m.generate_media_dto.clone().unwrap());
+        sqlx = sqlx.bind(&m.generate_media_dto);
+        sqlx = sqlx.bind(&m.seed);
         sqlx = sqlx.bind(&m.source);
         sqlx = sqlx.bind(m.created_at.to_owned() as i64);
     }
@@ -439,30 +464,7 @@ pub async fn get_media(
     }
 }
 
-pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
-    let sqlx_result = sqlx::query_as::<_, Media>(
-        "
-        SELECT * FROM media WHERE id = $1 AND user_id = $2
-        ",
-    )
-    .bind(id)
-    .bind(&claims.id)
-    .fetch_optional(pool)
-    .await;
-
-    match sqlx_result {
-        Ok(media) => match media {
-            Some(media) => Ok(media),
-            None => Err(MediaApiError::MediaNotFound.value()),
-        },
-        Err(e) => {
-            tracing::error!(%e);
-            Err(DefaultApiError::InternalServerError.value())
-        }
-    }
-}
-
-pub async fn get_media_by_id_as_admin(id: &str, pool: &PgPool) -> Result<Media, ApiError> {
+pub async fn get_media_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
         SELECT * FROM media WHERE id = $1

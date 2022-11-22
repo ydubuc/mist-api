@@ -2,11 +2,12 @@ use reqwest::StatusCode;
 
 use crate::{
     app::models::api_error::ApiError,
+    media::{self},
     transactions::{
         handlers::errors::HandlersApiError,
         service,
         structs::{
-            revenuecat_event_non_renewing::RevenueCatWebhookEventNonRenewing,
+            revenuecat_event_cancellation::RevenueCatWebhookEventCancellation,
             revenuecat_webbook::RevenueCatWebhook,
         },
         INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_MEGA_AMOUNT, INK_SMALL_AMOUNT,
@@ -16,7 +17,7 @@ use crate::{
 };
 
 pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), ApiError> {
-    let event: RevenueCatWebhookEventNonRenewing =
+    let event: RevenueCatWebhookEventCancellation =
         serde_json::from_value(webhook.clone().event).unwrap();
 
     let Some(user_id) = service::retrieve_user_id(
@@ -37,7 +38,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         "com.greenknightlabs.mist.ios.ink_large.111622" => INK_LARGE_AMOUNT,
         "com.greenknightlabs.mist.ios.ink_mega.111622" => INK_MEGA_AMOUNT,
         _ => {
-            tracing::error!("not implemented product_id: {}", event.product_id);
+            tracing::error!("Not implemented product_id: {}", event.product_id);
             return Err(HandlersApiError::ProductNotImplemented.value());
         }
     };
@@ -51,8 +52,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     };
 
     let edit_user_ink_dto = EditUserInkDto {
-        ink_increase: Some(amount),
-        ink_decrease: None,
+        ink_increase: None,
+        ink_decrease: Some(amount),
         ink_pending_increase: None,
         ink_pending_decrease: None,
     };
@@ -66,7 +67,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            tracing::warn!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {

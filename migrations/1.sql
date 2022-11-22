@@ -63,6 +63,7 @@ CREATE TABLE media(
     height SMALLINT NOT NULL,
     mime_type VARCHAR(255) NOT NULL,
     generate_media_dto JSONB,
+    seed VARCHAR(255),
     source VARCHAR(255) NOT NULL,
     created_at BIGINT NOT NULL
 );
