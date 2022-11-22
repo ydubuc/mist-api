@@ -6,15 +6,15 @@ use crate::{
     media::{dtos::generate_media_dto::GenerateMediaDto, enums::media_generator::MediaGenerator},
 };
 
-use super::dtos::edit_user_dto::EditUserInkDto;
+use super::dtos::edit_user_ink_dto::EditUserInkDto;
 
 pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) -> i64 {
     let base_ink = match dto.generator.as_ref() {
-        MediaGenerator::DALLE => 4.0,
+        MediaGenerator::DALLE => 5.0,
         MediaGenerator::DREAM => 4.0,
         MediaGenerator::MIST_STABILITY => 4.0,
         MediaGenerator::STABLE_HORDE => 2.0,
-        _ => 10.0,
+        _ => 5.0,
     };
 
     let ink_per_pixel: f64 = base_ink / (512.0 * 512.0);

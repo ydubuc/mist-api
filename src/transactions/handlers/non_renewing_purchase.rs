@@ -2,7 +2,6 @@ use reqwest::StatusCode;
 
 use crate::{
     app::models::api_error::ApiError,
-    media::{self, util::ink::dtos::edit_user_dto::EditUserInkDto},
     transactions::{
         handlers::errors::HandlersApiError,
         service,
@@ -12,6 +11,7 @@ use crate::{
         },
         INK_LARGE_AMOUNT, INK_MEDIUM_AMOUNT, INK_MEGA_AMOUNT, INK_SMALL_AMOUNT,
     },
+    users::{self, util::ink::dtos::edit_user_ink_dto::EditUserInkDto},
     AppState,
 };
 
@@ -58,7 +58,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     };
 
     let edit_user_ink_by_id_result =
-        media::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(&user_id, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;

@@ -44,7 +44,8 @@ pub fn spawn_generate_media_task(
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
             }
-            Err(_) => {
+            Err(e) => {
+                tracing::error!("{:?}", e);
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -145,12 +146,12 @@ async fn await_request_completion(
 
     let Ok(initial_check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
     else {
-        tracing::error!("Failed to get request by id while awaiting stable horde request.");
+        tracing::error!("failed to get request by id while awaiting stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
     if !initial_check_response.is_possible {
-        tracing::error!("Failed to generate stable horde request. Request is not possible.");
+        tracing::error!("failed to generate stable horde request. (request is not possible)");
         return Err(DefaultApiError::InternalServerError.value());
     }
 

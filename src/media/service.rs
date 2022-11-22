@@ -15,7 +15,9 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts, users, AppState,
+    posts,
+    users::{self, util::ink::dtos::edit_user_ink_dto::EditUserInkDto},
+    AppState,
 };
 
 use super::{
@@ -24,7 +26,7 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::{self, backblaze, ink::dtos::edit_user_dto::EditUserInkDto},
+    util::{self, backblaze},
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -115,7 +117,7 @@ async fn get_generate_media_request(
         Err(e) => return Err(e),
     };
 
-    let ink_cost = util::ink::ink::calculate_ink_cost(&dto, None);
+    let ink_cost = users::util::ink::ink::calculate_ink_cost(&dto, None);
 
     if (user.ink - user.ink_pending) < ink_cost {
         return Err(ApiError {
@@ -141,7 +143,7 @@ async fn get_generate_media_request(
     };
 
     let edit_user_ink_by_id_result =
-        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;
@@ -228,9 +230,9 @@ pub async fn on_generate_media_completion(
     };
 
     let ink_cost_original =
-        util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
+        users::util::ink::ink::calculate_ink_cost(&generate_media_request.generate_media_dto, None);
 
-    let ink_cost_actual = util::ink::ink::calculate_ink_cost(
+    let ink_cost_actual = users::util::ink::ink::calculate_ink_cost(
         &generate_media_request.generate_media_dto,
         Some(media_generated),
     );
@@ -246,7 +248,7 @@ pub async fn on_generate_media_completion(
     };
 
     let edit_user_ink_by_id_result =
-        util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;
