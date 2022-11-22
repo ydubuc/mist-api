@@ -86,7 +86,7 @@ impl EditUserDto {
         sql.push_str(&[" WHERE id = $", &index.to_string()].concat());
         sql.push_str(" RETURNING *");
 
-        println!("{}", sql);
+        tracing::debug!(sql);
 
         Ok(sql)
     }

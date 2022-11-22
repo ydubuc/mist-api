@@ -95,7 +95,7 @@ impl GetDevicesFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        tracing::debug!(%sql);
+        tracing::debug!(sql);
 
         Ok(sql.to_string())
     }

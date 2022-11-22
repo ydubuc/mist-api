@@ -16,8 +16,6 @@ use crate::{
 };
 
 pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), ApiError> {
-    println!("handling non renewing purchase");
-
     let event: RevenueCatWebhookEventNonRenewing =
         serde_json::from_value(webhook.clone().event).unwrap();
 
@@ -39,7 +37,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         "com.greenknightlabs.mist.ios.ink_large.111622" => INK_LARGE_AMOUNT,
         "com.greenknightlabs.mist.ios.ink_mega.111622" => INK_MEGA_AMOUNT,
         _ => {
-            tracing::error!("Not implemented product_id: {}", event.product_id);
+            tracing::error!("not implemented product_id: {}", event.product_id);
             return Err(HandlersApiError::ProductNotImplemented.value());
         }
     };
@@ -68,7 +66,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("rolled back edit_user_ink_by_id_result")
         }
 
         return Err(ApiError {
@@ -86,7 +84,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back create_transaction_result")
+            tracing::warn!("rolled back create_transaction_result");
         }
 
         return Err(ApiError {

@@ -149,7 +149,7 @@ async fn get_generate_media_request(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {
@@ -167,7 +167,7 @@ async fn get_generate_media_request(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back create_request_result")
+            tracing::warn!("rolled back create_reqest_result");
         }
 
         return Err(ApiError {
@@ -216,7 +216,7 @@ pub async fn on_generate_media_completion(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_generate_media_request_by_id_as_tx_result")
+            tracing::warn!("rolled back edit_generate_media_request_by_id_as_tx_result");
         }
 
         return;
@@ -254,16 +254,15 @@ pub async fn on_generate_media_completion(
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result");
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return;
     }
 
     match tx.commit().await {
-        Ok(_) => println!("on_generate_media_completion went through (probably?)"),
+        Ok(_) => {}
         Err(e) => {
-            println!("on_generate_media_completion tx commit error");
             tracing::error!(%e);
             return;
         }
@@ -302,9 +301,6 @@ pub async fn import_media(
     }
 
     for file_properties in &files_properties {
-        println!("{}", file_properties.mime_type);
-        println!("mime from mime {}", mime::IMAGE.to_string());
-
         if !file_properties
             .mime_type
             .starts_with(&mime::IMAGE.to_string())

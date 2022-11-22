@@ -53,7 +53,7 @@ impl EditUserInkDto {
 
         sql.push_str(&[" WHERE id = $", &index.to_string()].concat());
 
-        println!("{}", sql);
+        tracing::debug!(sql);
 
         Ok(sql)
     }

@@ -115,8 +115,7 @@ impl GetPostsFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        tracing::debug!(%sql);
-        println!("{}", sql);
+        tracing::debug!(sql);
 
         Ok(sql.to_string())
     }

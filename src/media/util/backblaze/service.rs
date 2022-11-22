@@ -25,7 +25,7 @@ pub async fn upload_files(
     let mut responses = Vec::new();
 
     // FIXME: note if doing this operation in parallel, responses will not match indexes of files
-    // consider identifier file properties first
+    // consider identifying file properties first
     for file_properties in files_properties {
         match upload_file(&file_properties, sub_folder, b2).await {
             Ok(res) => responses.push(res),

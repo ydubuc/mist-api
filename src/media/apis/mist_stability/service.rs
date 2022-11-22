@@ -73,7 +73,7 @@ async fn generate_media(
     for data in &mist_response.base64_data {
         let Ok(bytes) = base64::decode(&data)
         else {
-            println!("could not decode data");
+            tracing::warn!("could not decode mist_response.base64_data");
             continue;
         };
 
@@ -89,13 +89,9 @@ async fn generate_media(
         files_properties.push(file_properties);
     }
 
-    println!("files properties {}", files_properties.len());
-
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
         Ok(responses) => {
-            println!("responses {}", responses.len());
-
             let media = Media::from_dto(dto, &responses, claims, &state.b2);
 
             if media.len() == 0 {

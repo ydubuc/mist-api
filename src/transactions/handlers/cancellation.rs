@@ -16,8 +16,6 @@ use crate::{
 };
 
 pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), ApiError> {
-    println!("handling non renewing purchase");
-
     let event: RevenueCatWebhookEventCancellation =
         serde_json::from_value(webhook.clone().event).unwrap();
 
@@ -68,7 +66,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {
@@ -86,7 +84,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         if let Some(e) = rollback_result.err() {
             tracing::error!(%e);
         } else {
-            println!("rolled back create_transaction_result")
+            tracing::warn!("rolled back create_transaction_result");
         }
 
         return Err(ApiError {

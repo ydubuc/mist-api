@@ -34,7 +34,7 @@ pub async fn handle_webhook(webhook: RevenueCatWebhook, state: &AppState) -> Res
             Ok(())
         }
         _ => {
-            tracing::error!("Not handling webhook event type: {}", event);
+            tracing::error!("not handling webhook event type: {}", event);
             tracing::error!("{:?}", webhook);
             return Ok(());
         }

@@ -256,8 +256,6 @@ pub async fn logout_devices_with_ids(
     sql.push_str(")");
     sql.push_str(" AND user_id = $1");
 
-    println!("{}", sql);
-
     let sqlx = sqlx::query(&sql).bind(&claims.id);
 
     match sqlx.execute(pool).await {

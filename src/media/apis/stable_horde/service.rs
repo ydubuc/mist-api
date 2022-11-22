@@ -83,7 +83,7 @@ async fn generate_media(
         });
     };
 
-    println!(
+    tracing::debug!(
         "request processed by {}",
         generations.first().unwrap().worker_name
     );
@@ -169,14 +169,15 @@ async fn await_request_completion(
     };
 
     while !request.done && !request.faulted && !encountered_error {
-        println!("waiting for request, estimated wait_time: {}", wait_time);
+        tracing::debug!("waiting for request {}, estimated: {}", id, wait_time);
+
         sleep(Duration::from_secs(wait_time.into())).await;
 
-        println!("checking request after waiting for {}", wait_time);
+        tracing::debug!("checking request {} after {}", id, wait_time);
 
         let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
         else {
-            tracing::error!("Failed to get request by id while awaiting stable horde request.");
+            tracing::error!("failed to get request by id while awaiting stable horde request.");
             encountered_error = true;
             continue;
         };
@@ -193,13 +194,13 @@ async fn await_request_completion(
     }
 
     if request.faulted {
-        tracing::error!("Stable horde task finished with error: {:?}", request);
+        tracing::error!("stable horde task finished with error: {:?}", request);
         return Err(DefaultApiError::InternalServerError.value());
     }
 
     let Ok(get_response) = get_request_by_id(&id, false, stable_horde_api_key).await
     else {
-        tracing::error!("Failed to get request full status by id for stable horde request.");
+        tracing::error!("failed to get request full status by id for stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
