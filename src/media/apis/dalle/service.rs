@@ -24,8 +24,9 @@ use crate::{
 };
 
 use super::{
-    config::API_URL, models::input_spec::InputSpec,
-    structs::dalle_generate_images_response::DalleGenerateImagesResponse,
+    config::API_URL,
+    models::input_spec::InputSpec,
+    structs::dalle_generate_images_response::{DalleDataBase64Json, DalleGenerateImagesResponse},
 };
 
 pub fn spawn_generate_media_task(
@@ -70,43 +71,100 @@ async fn generate_media(
         return Err(dalle_generate_images_result.unwrap_err());
     };
 
-    let mut files_properties = Vec::new();
+    let mut futures = Vec::with_capacity(dalle_response.data.len());
 
     for data in &dalle_response.data {
-        let Ok(bytes) = base64::decode(&data.b64_json)
-        else {
-            continue;
-        };
-
-        let uuid = Uuid::new_v4().to_string();
-        let file_properties = FileProperties {
-            id: uuid.to_string(),
-            field_name: uuid.to_string(),
-            file_name: uuid.to_string(),
-            mime_type: mime::IMAGE_PNG.to_string(),
-            data: Bytes::from(bytes),
-        };
-
-        files_properties.push(file_properties);
+        futures.push(upload_image_and_create_media(dto, data, claims, state));
     }
 
-    let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
-        Ok(responses) => {
-            let media = Media::from_dto(dto, &responses, claims, &state.b2);
+    let results = futures::future::join_all(futures).await;
+    let mut media = Vec::with_capacity(dalle_response.data.len());
 
-            if media.len() == 0 {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Failed to upload files.".to_string(),
-                });
-            }
-
-            match media::service::upload_media(media, &state.pool).await {
-                Ok(m) => Ok(m),
-                Err(e) => Err(e),
-            }
+    for result in results {
+        if result.is_ok() {
+            media.push(result.unwrap());
         }
+    }
+
+    if media.len() == 0 {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to upload files.".to_string(),
+        });
+    }
+
+    match media::service::upload_media(media, &state.pool).await {
+        Ok(m) => Ok(m),
+        Err(e) => Err(e),
+    }
+
+    // let mut files_properties = Vec::new();
+
+    // for data in &dalle_response.data {
+    //     let Ok(bytes) = base64::decode(&data.b64_json)
+    //     else {
+    //         continue;
+    //     };
+
+    //     let uuid = Uuid::new_v4().to_string();
+    //     let file_properties = FileProperties {
+    //         id: uuid.to_string(),
+    //         field_name: uuid.to_string(),
+    //         file_name: uuid.to_string(),
+    //         mime_type: mime::IMAGE_PNG.to_string(),
+    //         data: Bytes::from(bytes),
+    //     };
+
+    //     files_properties.push(file_properties);
+    // }
+
+    // let sub_folder = Some(["media/", &claims.id].concat());
+    // match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
+    //     Ok(responses) => {
+    //         let media = Media::from_dto(dto, &responses, claims, &state.b2);
+
+    //         if media.len() == 0 {
+    //             return Err(ApiError {
+    //                 code: StatusCode::INTERNAL_SERVER_ERROR,
+    //                 message: "Failed to upload files.".to_string(),
+    //             });
+    //         }
+
+    //         match media::service::upload_media(media, &state.pool).await {
+    //             Ok(m) => Ok(m),
+    //             Err(e) => Err(e),
+    //         }
+    //     }
+    //     Err(e) => Err(e),
+    // }
+}
+
+async fn upload_image_and_create_media(
+    dto: &GenerateMediaDto,
+    dalle_data_base_64_json: &DalleDataBase64Json,
+    claims: &Claims,
+    state: &AppState,
+) -> Result<Media, ApiError> {
+    let Ok(bytes) = base64::decode(&dalle_data_base_64_json.b64_json)
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Could not decode image.".to_string()
+        });
+    };
+
+    let uuid = Uuid::new_v4().to_string();
+    let file_properties = FileProperties {
+        id: uuid.to_string(),
+        field_name: uuid.to_string(),
+        file_name: uuid.to_string(),
+        mime_type: "image/webp".to_string(),
+        data: Bytes::from(bytes),
+    };
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+        Ok(response) => Ok(Media::from_dto(dto, None, &response, claims, &state.b2)),
         Err(e) => Err(e),
     }
 }

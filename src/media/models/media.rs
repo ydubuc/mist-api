@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    app::util::time,
+    app::{models::api_error::ApiError, util::time},
     auth::jwt::models::claims::Claims,
     media::{
         dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
@@ -25,6 +25,8 @@ pub struct Media {
     pub mime_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generate_media_dto: Option<sqlx::types::Json<GenerateMediaDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<String>,
     pub source: String,
     pub created_at: i64,
 }
@@ -32,71 +34,61 @@ pub struct Media {
 impl Media {
     pub fn from_dto(
         dto: &GenerateMediaDto,
-        b2_upload_responses: &Vec<BackblazeUploadFileResponse>,
+        seed: Option<&str>,
+        b2_upload_responses: &BackblazeUploadFileResponse,
         claims: &Claims,
         b2: &B2,
-    ) -> Vec<Media> {
-        let mut vec = Vec::new();
+    ) -> Media {
+        let download_url = [
+            &b2.downloadUrl,
+            "/b2api/v1/b2_download_file_by_id?fileId=",
+            &b2_upload_responses.file_id,
+        ]
+        .concat();
 
-        for res in b2_upload_responses {
-            let download_url = [
-                &b2.downloadUrl,
-                "/b2api/v1/b2_download_file_by_id?fileId=",
-                &res.file_id,
-            ]
-            .concat();
-
-            let media = Media {
-                id: res.file_id.to_string(),
-                user_id: claims.id.to_string(),
-                file_id: res.file_id.to_string(),
-                url: download_url,
-                width: dto.width as i16,
-                height: dto.height as i16,
-                mime_type: res.content_type.to_string(),
-                generate_media_dto: Some(sqlx::types::Json(dto.clone())),
-                source: dto.generator.to_string(),
-                created_at: time::current_time_in_secs() as i64,
-            };
-
-            vec.push(media);
-        }
-
-        return vec;
+        return Media {
+            id: b2_upload_responses.file_id.to_string(),
+            user_id: claims.id.to_string(),
+            file_id: b2_upload_responses.file_id.to_string(),
+            url: download_url,
+            width: dto.width as i16,
+            height: dto.height as i16,
+            mime_type: b2_upload_responses.content_type.to_string(),
+            generate_media_dto: Some(sqlx::types::Json(dto.clone())),
+            seed: match seed {
+                Some(seed) => Some(seed.to_string()),
+                None => None,
+            },
+            source: dto.generator.to_string(),
+            created_at: time::current_time_in_secs() as i64,
+        };
     }
 
     pub fn from_import(
-        b2_upload_responses: &Vec<BackblazeUploadFileResponse>,
-        image_size: &Vec<ImageSize>,
+        b2_upload_responses: &BackblazeUploadFileResponse,
+        image_size: &ImageSize,
         claims: &Claims,
         b2: &B2,
-    ) -> Vec<Media> {
-        let mut vec = Vec::new();
+    ) -> Media {
+        let download_url = [
+            &b2.downloadUrl,
+            "/b2api/v1/b2_download_file_by_id?fileId=",
+            &b2_upload_responses.file_id,
+        ]
+        .concat();
 
-        for (index, res) in b2_upload_responses.iter().enumerate() {
-            let download_url = [
-                &b2.downloadUrl,
-                "/b2api/v1/b2_download_file_by_id?fileId=",
-                &res.file_id,
-            ]
-            .concat();
-
-            let media = Media {
-                id: res.file_id.to_string(),
-                user_id: claims.id.to_string(),
-                file_id: res.file_id.to_string(),
-                url: download_url,
-                width: image_size.get(index).unwrap().width.to_owned() as i16,
-                height: image_size.get(index).unwrap().height.to_owned() as i16,
-                mime_type: res.content_type.to_string(),
-                generate_media_dto: None,
-                source: MediaSource::Import.value(),
-                created_at: time::current_time_in_secs() as i64,
-            };
-
-            vec.push(media);
-        }
-
-        return vec;
+        return Media {
+            id: b2_upload_responses.file_id.to_string(),
+            user_id: claims.id.to_string(),
+            file_id: b2_upload_responses.file_id.to_string(),
+            url: download_url,
+            width: image_size.width.to_owned() as i16,
+            height: image_size.height.to_owned() as i16,
+            mime_type: b2_upload_responses.content_type.to_string(),
+            generate_media_dto: None,
+            seed: None,
+            source: MediaSource::Import.value(),
+            created_at: time::current_time_in_secs() as i64,
+        };
     }
 }

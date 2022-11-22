@@ -1,5 +1,5 @@
 use b2_backblaze::B2;
-use reqwest::header;
+use reqwest::{header, StatusCode};
 use serde_json::json;
 
 use crate::{
@@ -21,22 +21,17 @@ pub async fn upload_files(
     files_properties: &Vec<FileProperties>,
     sub_folder: &Option<String>,
     b2: &B2,
-) -> Result<Vec<BackblazeUploadFileResponse>, ApiError> {
-    let mut responses = Vec::new();
+) -> Vec<Result<BackblazeUploadFileResponse, ApiError>> {
+    let mut futures = Vec::with_capacity(files_properties.len());
 
-    // FIXME: note if doing this operation in parallel, responses will not match indexes of files
-    // consider identifying file properties first
     for file_properties in files_properties {
-        match upload_file(&file_properties, sub_folder, b2).await {
-            Ok(res) => responses.push(res),
-            Err(e) => tracing::error!(%e.message),
-        }
+        futures.push(upload_file(&file_properties, sub_folder, b2));
     }
 
-    Ok(responses)
+    futures::future::join_all(futures).await
 }
 
-async fn upload_file(
+pub async fn upload_file(
     file_properties: &FileProperties,
     sub_folder: &Option<String>,
     b2: &B2,
@@ -64,7 +59,7 @@ async fn upload_file(
                 "X-Bz-Content-Sha1",
                 "do_not_verify".to_string().parse().unwrap(),
             );
-            headers.insert("X-Bz-Info-Author", "unknown".to_string().parse().unwrap());
+            headers.insert("X-Bz-Info-Author", "Mist".to_string().parse().unwrap());
 
             let client = reqwest::Client::new();
             let result = client

@@ -26,7 +26,7 @@ use super::{
     models::input_spec::{InputSpec, InputSpecParams},
     structs::{
         stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
-        stable_horde_get_request_response::StableHordeGetRequestResponse,
+        stable_horde_get_request_response::{StableHordeGeneration, StableHordeGetRequestResponse},
     },
 };
 
@@ -80,7 +80,7 @@ async fn generate_media(
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Stable horde generated no images.".to_string()
+            message: "Stable Horde generated no images.".to_string()
         });
     };
 
@@ -89,43 +89,68 @@ async fn generate_media(
         generations.first().unwrap().worker_name
     );
 
-    let mut files_properties = Vec::with_capacity(generations.len());
+    let mut futures = Vec::with_capacity(generations.len());
 
     for generation in &generations {
-        let Ok(bytes) = base64::decode(&generation.img)
-        else {
-            continue;
-        };
-
-        let uuid = Uuid::new_v4().to_string();
-        let file_properties = FileProperties {
-            id: uuid.to_string(),
-            field_name: uuid.to_string(),
-            file_name: uuid.to_string(),
-            mime_type: "image/webp".to_string(),
-            data: Bytes::from(bytes),
-        };
-
-        files_properties.push(file_properties);
+        futures.push(upload_image_and_create_media(
+            dto, generation, claims, state,
+        ));
     }
 
-    let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
-        Ok(responses) => {
-            let media = Media::from_dto(dto, &responses, claims, &state.b2);
+    let results = futures::future::join_all(futures).await;
+    let mut media = Vec::with_capacity(generations.len());
 
-            if media.len() == 0 {
-                return Err(ApiError {
-                    code: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Failed to upload files.".to_string(),
-                });
-            }
-
-            match media::service::upload_media(media, &state.pool).await {
-                Ok(m) => Ok(m),
-                Err(e) => Err(e),
-            }
+    for result in results {
+        if result.is_ok() {
+            media.push(result.unwrap());
         }
+    }
+
+    if media.len() == 0 {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to upload files.".to_string(),
+        });
+    }
+
+    match media::service::upload_media(media, &state.pool).await {
+        Ok(m) => Ok(m),
+        Err(e) => Err(e),
+    }
+}
+
+async fn upload_image_and_create_media(
+    dto: &GenerateMediaDto,
+    stable_horde_generation: &StableHordeGeneration,
+    claims: &Claims,
+    state: &AppState,
+) -> Result<Media, ApiError> {
+    let Ok(bytes) = base64::decode(&stable_horde_generation.img)
+    else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Could not decode image.".to_string()
+        });
+    };
+
+    let uuid = Uuid::new_v4().to_string();
+    let file_properties = FileProperties {
+        id: uuid.to_string(),
+        field_name: uuid.to_string(),
+        file_name: uuid.to_string(),
+        mime_type: "image/webp".to_string(),
+        data: Bytes::from(bytes),
+    };
+
+    let sub_folder = Some(["media/", &claims.id].concat());
+    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+        Ok(response) => Ok(Media::from_dto(
+            dto,
+            Some(&stable_horde_generation.seed),
+            &response,
+            claims,
+            &state.b2,
+        )),
         Err(e) => Err(e),
     }
 }
