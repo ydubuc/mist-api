@@ -53,6 +53,27 @@ pub async fn create_post(
 
     let post = Post::new(claims, dto, media);
 
+    save_post_as_admin(post, pool).await
+}
+
+pub async fn create_post_with_media_as_admin(
+    generate_media_dto: &GenerateMediaDto,
+    media: &Vec<Media>,
+    claims: &Claims,
+    pool: &PgPool,
+) {
+    let dto = CreatePostDto {
+        title: generate_media_dto.prompt.to_string(),
+        content: None,
+        media_ids: None,
+    };
+
+    let post = Post::new(claims, &dto, Some(media.to_vec()));
+
+    let _ = save_post_as_admin(post, pool).await;
+}
+
+pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiError> {
     let sqlx_result = sqlx::query(
         "
         INSERT INTO posts (
@@ -101,27 +122,6 @@ pub async fn create_post(
             }
         }
     }
-}
-
-pub async fn create_post_with_media(
-    generate_media_dto: &GenerateMediaDto,
-    media: &Vec<Media>,
-    claims: &Claims,
-    pool: &PgPool,
-) {
-    let mut media_ids = Vec::new();
-
-    for m in media {
-        media_ids.push(m.id.to_string());
-    }
-
-    let dto = CreatePostDto {
-        title: generate_media_dto.prompt.to_string(),
-        content: None,
-        media_ids: Some(media_ids),
-    };
-
-    let _ = create_post(&dto, claims, pool).await;
 }
 
 pub async fn get_posts(

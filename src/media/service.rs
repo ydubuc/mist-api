@@ -281,7 +281,7 @@ pub async fn on_generate_media_completion(
             state.clone(),
         );
 
-        posts::service::create_post_with_media(
+        posts::service::create_post_with_media_as_admin(
             &generate_media_request.generate_media_dto,
             &media,
             &claims,

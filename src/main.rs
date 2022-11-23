@@ -129,8 +129,8 @@ async fn main() {
         .route("/users/:id", get(users::controller::get_user_by_id))
         .route("/users/:id", patch(users::controller::edit_user_by_id))
         // POSTS
-        // .route("/posts", post(posts::controller::create_post))
-        .route("/posts", get(posts::controller::get_posts))
+        .route("/posts", post(posts::controller::create_post))
+        // .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
         // .route("/posts/:id", patch(posts::controller::edit_post_by_id))
         .route(
@@ -140,7 +140,7 @@ async fn main() {
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // MEDIA
         .route("/media/generate", post(media::controller::generate_media))
-        .route("/media/import", post(media::controller::import_media))
+        // .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
         .route("/media/:id", delete(media::controller::delete_media_by_id))
@@ -151,6 +151,7 @@ async fn main() {
         )
         // LAYERS
         .layer(cors)
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|_err: BoxError| async move {

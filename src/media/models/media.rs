@@ -14,7 +14,7 @@ use crate::{
 
 pub static MEDIA_SORTABLE_FIELDS: [&str; 1] = ["created_at"];
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Media {
     pub id: String,
     pub user_id: String,
