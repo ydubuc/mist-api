@@ -2,6 +2,7 @@ use b2_backblaze::B2;
 use imagesize::ImageSize;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 use crate::{
     app::util::time,
@@ -47,7 +48,7 @@ impl Media {
         .concat();
 
         return Media {
-            id: b2_upload_responses.file_id.to_string(),
+            id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,
@@ -78,7 +79,7 @@ impl Media {
         .concat();
 
         return Media {
-            id: b2_upload_responses.file_id.to_string(),
+            id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,
