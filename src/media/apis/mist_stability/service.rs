@@ -175,6 +175,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         width: dto.width,
         height: dto.height,
         number: dto.number,
+        steps: Some(50),
     }
 }
 

@@ -2,7 +2,6 @@ use reqwest::StatusCode;
 
 use crate::{
     app::models::api_error::ApiError,
-    media::{self},
     transactions::{
         handlers::errors::HandlersApiError,
         service,
