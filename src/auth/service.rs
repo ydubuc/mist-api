@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::http::StatusCode;
 use jsonwebtoken::errors::ErrorKind;
 use sqlx::PgPool;
@@ -37,7 +39,7 @@ use super::{
     models::access_info::AccessInfo,
 };
 
-pub async fn register(dto: &RegisterDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+pub async fn register(dto: &RegisterDto, state: &Arc<AppState>) -> Result<AccessInfo, ApiError> {
     match users::service::create_user_as_admin(dto, &state.pool).await {
         Ok(_) => {
             let login_dto = LoginDto {
@@ -52,7 +54,7 @@ pub async fn register(dto: &RegisterDto, state: &AppState) -> Result<AccessInfo,
     }
 }
 
-pub async fn login(dto: &LoginDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+pub async fn login(dto: &LoginDto, state: &Arc<AppState>) -> Result<AccessInfo, ApiError> {
     match users::service::get_user_by_login_dto_as_admin(dto, &state.pool).await {
         Ok(user) => {
             if user.delete_pending {
@@ -90,7 +92,7 @@ pub async fn login(dto: &LoginDto, state: &AppState) -> Result<AccessInfo, ApiEr
 pub async fn request_email_update_mail(
     dto: &RequestEmailUpdateDto,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     let user_result = users::service::get_user_by_id(&claims.id, claims, &state.pool).await;
     let Ok(user) = user_result
@@ -136,7 +138,7 @@ pub async fn request_email_update_mail(
     }
 }
 
-pub async fn process_email_edit(access_token: &str, state: &AppState) -> Result<(), ApiError> {
+pub async fn process_email_edit(access_token: &str, state: &Arc<AppState>) -> Result<(), ApiError> {
     match decode_jwt(
         access_token.to_string(),
         &state.envy.jwt_secret,
@@ -160,7 +162,7 @@ pub async fn process_email_edit(access_token: &str, state: &AppState) -> Result<
 
 pub async fn request_password_update_mail(
     dto: &RequestPasswordUpdateDto,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     match users::service::get_user_by_email_as_admin(&dto.email, &state.pool).await {
         Ok(user) => {
@@ -183,7 +185,7 @@ pub async fn request_password_update_mail(
 pub async fn process_password_edit(
     access_token: &str,
     dto: &EditPasswordDto,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     match decode_jwt(
         access_token.to_string(),
@@ -214,7 +216,10 @@ pub async fn get_devices(
     return devices::service::get_devices(dto, claims, pool).await;
 }
 
-pub async fn refresh(dto: &RefreshDeviceDto, state: &AppState) -> Result<AccessInfo, ApiError> {
+pub async fn refresh(
+    dto: &RefreshDeviceDto,
+    state: &Arc<AppState>,
+) -> Result<AccessInfo, ApiError> {
     match devices::service::refresh_device_as_admin(dto, &state.pool).await {
         Ok(device) => Ok(AccessInfo {
             access_token: sign_jwt_with_device(device, &state.envy.jwt_secret),

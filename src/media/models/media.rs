@@ -38,10 +38,10 @@ impl Media {
         seed: Option<&str>,
         b2_upload_responses: &BackblazeUploadFileResponse,
         claims: &Claims,
-        b2: &B2,
+        b2_download_url: &str,
     ) -> Media {
         let download_url = [
-            &b2.downloadUrl,
+            b2_download_url,
             "/b2api/v1/b2_download_file_by_id?fileId=",
             &b2_upload_responses.file_id,
         ]
@@ -69,10 +69,10 @@ impl Media {
         b2_upload_responses: &BackblazeUploadFileResponse,
         image_size: &ImageSize,
         claims: &Claims,
-        b2: &B2,
+        b2_download_url: &str,
     ) -> Media {
         let download_url = [
-            &b2.downloadUrl,
+            b2_download_url,
             "/b2api/v1/b2_download_file_by_id?fileId=",
             &b2_upload_responses.file_id,
         ]

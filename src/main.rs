@@ -14,6 +14,7 @@ use axum::{
 };
 use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use tokio::sync::RwLock;
 use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
@@ -33,7 +34,7 @@ mod users;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    pub b2: B2,
+    pub b2: Arc<RwLock<B2>>,
     pub envy: Envy,
 }
 
@@ -87,7 +88,11 @@ async fn main() {
 
     tracing::info!("logged in to backblaze");
 
-    let state = Arc::new(AppState { pool, b2, envy });
+    let state = Arc::new(AppState {
+        pool,
+        b2: Arc::new(RwLock::new(b2)),
+        envy,
+    });
 
     // app
     // let app = Router::with_state(state)

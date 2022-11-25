@@ -65,7 +65,7 @@ pub fn spawn_generate_media_task(
 async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let stable_horde_api_key = &state.envy.stable_horde_api_key;
 
@@ -123,7 +123,7 @@ async fn upload_image_and_create_media(
     dto: &GenerateMediaDto,
     stable_horde_generation: &StableHordeGeneration,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
     let Ok(bytes) = base64::decode(&stable_horde_generation.img)
     else {
@@ -144,13 +144,17 @@ async fn upload_image_and_create_media(
 
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
-        Ok(response) => Ok(Media::from_dto(
-            dto,
-            Some(&stable_horde_generation.seed),
-            &response,
-            claims,
-            &state.b2,
-        )),
+        Ok(response) => {
+            let b2_download_url = &state.b2.read().await.downloadUrl;
+
+            Ok(Media::from_dto(
+                dto,
+                Some(&stable_horde_generation.seed),
+                &response,
+                claims,
+                b2_download_url,
+            ))
+        }
         Err(e) => Err(e),
     }
 }

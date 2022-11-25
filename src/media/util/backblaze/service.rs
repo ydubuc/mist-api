@@ -1,6 +1,9 @@
+use std::{sync::Arc, time::Instant};
+
 use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
+use tokio::sync::RwLock;
 
 use crate::{
     app::{
@@ -34,9 +37,9 @@ use super::structs::{
 pub async fn upload_file(
     file_properties: &FileProperties,
     sub_folder: &Option<String>,
-    b2: &B2,
+    b2: &Arc<RwLock<B2>>,
 ) -> Result<BackblazeUploadFileResponse, ApiError> {
-    let upload_url_result = get_upload_url(&b2.bucketId, b2).await;
+    let upload_url_result = get_upload_url(b2).await;
 
     match upload_url_result {
         Ok(upload_url_res) => {
@@ -93,7 +96,11 @@ pub async fn upload_file(
     }
 }
 
-async fn get_upload_url(bucket_id: &str, b2: &B2) -> Result<BackblazeUploadUrlResponse, ApiError> {
+async fn get_upload_url(b2: &Arc<RwLock<B2>>) -> Result<BackblazeUploadUrlResponse, ApiError> {
+    check_token(b2).await;
+
+    let b2 = b2.read().await;
+
     let mut headers = header::HeaderMap::new();
     headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
 
@@ -104,7 +111,7 @@ async fn get_upload_url(bucket_id: &str, b2: &B2) -> Result<BackblazeUploadUrlRe
         .headers(headers)
         .body(
             json!({
-                "bucketId": bucket_id.to_string()
+                "bucketId": b2.bucketId.to_string()
             })
             .to_string(),
         )
@@ -135,8 +142,12 @@ async fn get_upload_url(bucket_id: &str, b2: &B2) -> Result<BackblazeUploadUrlRe
 pub async fn delete_file(
     file_name: &str,
     file_id: &str,
-    b2: &B2,
+    b2: &Arc<RwLock<B2>>,
 ) -> Result<Option<BackblazeDeleteFileResponse>, ApiError> {
+    check_token(b2).await;
+
+    let b2 = b2.read().await;
+
     let mut headers = header::HeaderMap::new();
     headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
 
@@ -186,6 +197,19 @@ pub async fn delete_file(
         Err(e) => {
             tracing::error!(%e);
             return Err(DefaultApiError::InternalServerError.value());
+        }
+    }
+}
+
+async fn check_token(b2: &Arc<RwLock<B2>>) {
+    let _b2 = b2.read().await;
+
+    if _b2.token_time.elapsed().as_secs() > 43200 {
+        let mut b2 = b2.write().await;
+
+        match b2.check_token().await {
+            Ok(_) => tracing::info!("updated b2 token"),
+            Err(e) => tracing::error!(%e),
         }
     }
 }

@@ -6,6 +6,7 @@ use axum::{
     http::StatusCode,
     Json, TypedHeader,
 };
+use axum_macros::debug_handler;
 use validator::Validate;
 
 use crate::{
@@ -21,6 +22,7 @@ use super::{
     service,
 };
 
+#[debug_handler]
 pub async fn generate_media(
     State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
@@ -44,6 +46,7 @@ pub async fn generate_media(
     }
 }
 
+#[debug_handler]
 pub async fn import_media(
     State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
@@ -58,6 +61,7 @@ pub async fn import_media(
     }
 }
 
+#[debug_handler]
 pub async fn get_media(
     State(state): State<Arc<AppState>>,
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
@@ -81,6 +85,7 @@ pub async fn get_media(
     }
 }
 
+#[debug_handler]
 pub async fn get_media_by_id(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -95,6 +100,7 @@ pub async fn get_media_by_id(
     }
 }
 
+#[debug_handler]
 pub async fn delete_media_by_id(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,

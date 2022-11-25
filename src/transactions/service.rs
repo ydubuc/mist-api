@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use reqwest::StatusCode;
 use sqlx::{Postgres, Transaction};
 
@@ -9,7 +11,10 @@ use crate::{
 
 use super::structs::revenuecat_webbook::RevenueCatWebhook;
 
-pub async fn handle_webhook(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), ApiError> {
+pub async fn handle_webhook(
+    webhook: RevenueCatWebhook,
+    state: &Arc<AppState>,
+) -> Result<(), ApiError> {
     let Some(event_type) = webhook.event.get("type")
     else {
         return Err(ApiError {
