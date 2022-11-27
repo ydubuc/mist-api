@@ -24,6 +24,7 @@ use crate::app::{envy::Envy, errors::DefaultApiError};
 mod app;
 mod auth;
 mod devices;
+mod follows;
 mod generate_media_requests;
 mod mail;
 mod media;
@@ -154,6 +155,10 @@ async fn main() {
             "/generate-media-requests",
             get(generate_media_requests::controller::get_generate_media_requests),
         )
+        // FOLLOWS
+        .route("/follow/:id", post(follows::controller::follow))
+        .route("/follows", get(follows::controller::get_follows))
+        .route("/follow/:id", delete(follows::controller::unfollow))
         // LAYERS
         .layer(cors)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))

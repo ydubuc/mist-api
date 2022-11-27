@@ -15,15 +15,6 @@ use super::post_media::PostMedia;
 pub struct Post {
     pub id: String,
     pub user_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)] // this is because the value does not exist on the posts table itself
-    pub user_username: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)] // this is because the value does not exist on the posts table itself
-    pub user_displayname: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)] // this is because the value does not exist on the posts table itself
-    pub user_avatar_url: Option<String>,
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
@@ -34,6 +25,17 @@ pub struct Post {
     pub reports_count: i16,
     pub updated_at: i64,
     pub created_at: i64,
+
+    // JOINED USER
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
+    pub user_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
+    pub user_displayname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)] // this is because the value does not exist on the posts table itself
+    pub user_avatar_url: Option<String>,
 }
 
 impl Post {
@@ -71,9 +73,6 @@ impl Post {
         return Self {
             id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
-            user_username: None,
-            user_displayname: None,
-            user_avatar_url: None,
             title: dto.title.to_string(),
             content: dto.content.to_owned(),
             media: post_media,
@@ -81,6 +80,10 @@ impl Post {
             reports_count: 0,
             updated_at: current_time,
             created_at: current_time,
+
+            user_username: None,
+            user_displayname: None,
+            user_avatar_url: None,
         };
     }
 

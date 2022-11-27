@@ -88,3 +88,12 @@ CREATE TABLE transactions(
     data JSONB NOT NULL,
     created_at BIGINT NOT NULL
 );
+
+CREATE TABLE follows(
+    id TEXT PRIMARY KEY,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
+    follows_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
+    followed_at BIGINT NOT NULL
+);
+
+CREATE INDEX follows_followed_at ON follows (followed_at);
