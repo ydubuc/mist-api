@@ -12,14 +12,16 @@ use axum::{
     routing::{delete, get, patch, post},
     BoxError, Router,
 };
-use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tokio::sync::RwLock;
 use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
-use crate::app::{envy::Envy, errors::DefaultApiError};
+use crate::{
+    app::{envy::Envy, errors::DefaultApiError},
+    media::util::backblaze::b2::{b2::B2, config::Config},
+};
 
 mod app;
 mod auth;

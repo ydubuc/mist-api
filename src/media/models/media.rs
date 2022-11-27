@@ -1,4 +1,3 @@
-use b2_backblaze::B2;
 use imagesize::ImageSize;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;

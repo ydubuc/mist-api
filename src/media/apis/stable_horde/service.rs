@@ -145,7 +145,7 @@ async fn upload_image_and_create_media(
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
         Ok(response) => {
-            let b2_download_url = &state.b2.read().await.downloadUrl;
+            let b2_download_url = &state.b2.read().await.download_url;
 
             Ok(Media::from_dto(
                 dto,

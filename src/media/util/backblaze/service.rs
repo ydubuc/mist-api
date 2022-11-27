@@ -1,6 +1,5 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
-use b2_backblaze::B2;
 use reqwest::header;
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -13,11 +12,14 @@ use crate::{
     media::util::backblaze::enums::backblaze_delete_file_error_code::BackBlazeDeleteFileErrorCode,
 };
 
-use super::structs::{
-    backblaze_delete_file_error::BackblazeDeleteFileError,
-    backblaze_delete_file_response::BackblazeDeleteFileResponse,
-    backblaze_upload_file_response::BackblazeUploadFileResponse,
-    backblaze_upload_url_response::BackblazeUploadUrlResponse,
+use super::{
+    b2::b2::B2,
+    structs::{
+        backblaze_delete_file_error::BackblazeDeleteFileError,
+        backblaze_delete_file_response::BackblazeDeleteFileResponse,
+        backblaze_upload_file_response::BackblazeUploadFileResponse,
+        backblaze_upload_url_response::BackblazeUploadUrlResponse,
+    },
 };
 
 // pub async fn upload_files(
@@ -102,16 +104,16 @@ async fn get_upload_url(b2: &Arc<RwLock<B2>>) -> Result<BackblazeUploadUrlRespon
     let b2 = b2.read().await;
 
     let mut headers = header::HeaderMap::new();
-    headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
+    headers.insert("Authorization", b2.authorization_token.parse().unwrap());
 
-    let url = b2.apiUrl.to_string() + "/b2api/v2/b2_get_upload_url";
+    let url = b2.api_url.to_string() + "/b2api/v2/b2_get_upload_url";
     let client = reqwest::Client::new();
     let result = client
         .post(url)
         .headers(headers)
         .body(
             json!({
-                "bucketId": b2.bucketId.to_string()
+                "bucketId": b2.bucket_id.to_string()
             })
             .to_string(),
         )
@@ -149,11 +151,11 @@ pub async fn delete_file(
     let b2 = b2.read().await;
 
     let mut headers = header::HeaderMap::new();
-    headers.insert("Authorization", b2.authorizationToken.parse().unwrap());
+    headers.insert("Authorization", b2.authorization_token.parse().unwrap());
 
     let client = reqwest::Client::new();
     let result = client
-        .post([&b2.apiUrl, "/b2api/v2/b2_delete_file_version"].concat())
+        .post([&b2.api_url, "/b2api/v2/b2_delete_file_version"].concat())
         .headers(headers)
         .body(
             json!({

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
-use b2_backblaze::B2;
 use sqlx::PgPool;
 use tokio::sync::RwLock;
 
@@ -30,7 +29,7 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::backblaze,
+    util::backblaze::{self, b2::b2::B2},
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -366,7 +365,7 @@ async fn upload_image_from_import_and_create_media(
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_file(file_properties, &sub_folder, &state.b2).await {
         Ok(response) => {
-            let b2_download_url = &state.b2.read().await.downloadUrl;
+            let b2_download_url = &state.b2.read().await.download_url;
 
             Ok(Media::from_import(
                 &response,
