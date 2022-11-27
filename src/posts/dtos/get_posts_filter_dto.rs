@@ -40,15 +40,15 @@ impl GetPostsFilterDto {
         // WHERE CLAUSES
         if self.id.is_some() {
             index += 1;
-            clauses.push(["id = $", &index.to_string()].concat());
+            clauses.push(["posts.id = $", &index.to_string()].concat());
         }
         if self.user_id.is_some() {
             index += 1;
-            clauses.push(["user_id = $", &index.to_string()].concat());
+            clauses.push(["posts.user_id = $", &index.to_string()].concat());
         }
         if self.search.is_some() {
             index += 1;
-            clauses.push(["title LIKE $", &index.to_string()].concat());
+            clauses.push(["posts.title LIKE $", &index.to_string()].concat());
         }
 
         // SORT

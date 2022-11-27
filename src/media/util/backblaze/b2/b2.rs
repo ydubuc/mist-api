@@ -4,7 +4,6 @@ use serde::Deserialize;
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
-#[allow(non_snake_case)]
 pub struct B2 {
     pub token_time: Instant,
     pub config: Config,
