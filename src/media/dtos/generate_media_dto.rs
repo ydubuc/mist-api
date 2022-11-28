@@ -15,3 +15,15 @@ pub struct GenerateMediaDto {
     pub height: u16,
     pub generator: String,
 }
+
+impl GenerateMediaDto {
+    pub fn sanitized(&self) -> Self {
+        return Self {
+            prompt: self.prompt.trim().replace("\n", "").replace("\r", ""),
+            number: self.number,
+            width: self.width,
+            height: self.height,
+            generator: self.generator.to_string(),
+        };
+    }
+}
