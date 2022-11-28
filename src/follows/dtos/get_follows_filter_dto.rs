@@ -1,29 +1,33 @@
-use axum::http::StatusCode;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::{app::models::api_error::ApiError, media::models::media::MEDIA_SORTABLE_FIELDS};
+use crate::{app::models::api_error::ApiError, follows::models::follow::Follow};
 
 #[derive(Debug, Deserialize, Validate)]
-pub struct GetMediaFilterDto {
+pub struct GetFollowsFilterDto {
     pub id: Option<String>,
-    #[validate(length(equal = 36, message = "id must be 36 characters."))]
+    #[validate(length(equal = 36, message = "user_id must be 36 characters."))]
     pub user_id: Option<String>,
-    #[validate(url(message = "url must be valid"))]
-    pub url: Option<String>,
-    pub mime_type: Option<String>,
+    #[validate(length(equal = 36, message = "follows_id must be 36 characters."))]
+    pub follows_id: Option<String>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
-    #[validate(range(max = 100, message = "limit must be equal or less than 100."))]
+    #[validate(range(min = 1, max = 100, message = "limit must equal or less than 100."))]
     pub limit: Option<u8>,
 }
 
-impl GetMediaFilterDto {
+impl GetFollowsFilterDto {
     pub fn to_sql(&self) -> Result<String, ApiError> {
-        let mut sql = "SELECT * FROM media".to_string();
+        let mut sql = "SELECT follows.*".to_string();
+
+        // TODO: if getting followers, I need to load user on user_id not follows_id
+        // JOIN USER
+        sql.push_str(", users.id as user_id, users.username as user_username, users.displayname as user_displayname, users.avatar_url as user_avatar_url FROM follows LEFT JOIN users ON follows.follows_id = users.id");
+
         let mut clauses = Vec::new();
 
-        let mut sort_field = "created_at".to_string();
+        let mut sort_field = "followed_at".to_string();
         let mut sort_order = "DESC".to_string();
         let mut page_limit: u8 = 50;
 
@@ -38,13 +42,9 @@ impl GetMediaFilterDto {
             index += 1;
             clauses.push(["user_id = $", &index.to_string()].concat());
         }
-        if self.url.is_some() {
+        if self.follows_id.is_some() {
             index += 1;
-            clauses.push(["url = $", &index.to_string()].concat());
-        }
-        if self.mime_type.is_some() {
-            index += 1;
-            clauses.push(["mime_type = $", &index.to_string()].concat());
+            clauses.push(["follows_id = $", &index.to_string()].concat());
         }
 
         // SORT
@@ -57,7 +57,7 @@ impl GetMediaFilterDto {
                     message: "Malformed sort query.".to_string(),
                 });
             }
-            if !MEDIA_SORTABLE_FIELDS.contains(&sort_params[0]) {
+            if !Follow::sortable_fields().contains(&sort_params[0]) {
                 return Err(ApiError {
                     code: StatusCode::BAD_REQUEST,
                     message: "Invalid sort field.".to_string(),
@@ -93,9 +93,9 @@ impl GetMediaFilterDto {
 
                 clauses.push(
                     [
-                        "(",
+                        "(follows.",
                         &sort_field,
-                        ", id)",
+                        ", follows.id) ",
                         direction,
                         " (",
                         &cursor_value,
@@ -108,7 +108,7 @@ impl GetMediaFilterDto {
             }
 
             // if let Some(cursor) = &self.cursor {
-            //     clauses.push([&sort_field, " ", direction, " ", cursor].concat());
+            //     clauses.push(["posts.", &sort_field, " ", direction, " ", cursor].concat());
             // }
         }
 
@@ -127,10 +127,10 @@ impl GetMediaFilterDto {
         }
 
         // ORDER BY
-        sql.push_str(&[" ORDER BY ", &sort_field, " ", &sort_order].concat());
+        sql.push_str(&[" ORDER BY follows.", &sort_field, " ", &sort_order].concat());
 
         if self.cursor.is_some() {
-            sql.push_str(&[", id ", &sort_order].concat());
+            sql.push_str(&[", follows.id ", &sort_order].concat());
         }
 
         // LIMIT
@@ -140,7 +140,7 @@ impl GetMediaFilterDto {
 
         sql.push_str(&[" LIMIT ", &page_limit.to_string()].concat());
 
-        tracing::debug!(%sql);
+        tracing::debug!(sql);
 
         Ok(sql.to_string())
     }

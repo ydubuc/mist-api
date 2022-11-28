@@ -12,17 +12,21 @@ use axum::{
     routing::{delete, get, patch, post},
     BoxError, Router,
 };
-use b2_backblaze::{Config, B2};
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use tokio::sync::RwLock;
 use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
-use crate::app::{envy::Envy, errors::DefaultApiError};
+use crate::{
+    app::{envy::Envy, errors::DefaultApiError},
+    media::util::backblaze::b2::{b2::B2, config::Config},
+};
 
 mod app;
 mod auth;
 mod devices;
+mod follows;
 mod generate_media_requests;
 mod mail;
 mod media;
@@ -33,7 +37,7 @@ mod users;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    pub b2: B2,
+    pub b2: Arc<RwLock<B2>>,
     pub envy: Envy,
 }
 
@@ -87,7 +91,11 @@ async fn main() {
 
     tracing::info!("logged in to backblaze");
 
-    let state = Arc::new(AppState { pool, b2, envy });
+    let state = Arc::new(AppState {
+        pool,
+        b2: Arc::new(RwLock::new(b2)),
+        envy,
+    });
 
     // app
     // let app = Router::with_state(state)
@@ -140,7 +148,7 @@ async fn main() {
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // MEDIA
         .route("/media/generate", post(media::controller::generate_media))
-        .route("/media/import", post(media::controller::import_media))
+        // .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
         .route("/media/:id", delete(media::controller::delete_media_by_id))
@@ -149,8 +157,13 @@ async fn main() {
             "/generate-media-requests",
             get(generate_media_requests::controller::get_generate_media_requests),
         )
+        // FOLLOWS
+        .route("/follow/:id", post(follows::controller::follow))
+        .route("/follows", get(follows::controller::get_follows))
+        .route("/follow/:id", delete(follows::controller::unfollow))
         // LAYERS
         .layer(cors)
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|_err: BoxError| async move {

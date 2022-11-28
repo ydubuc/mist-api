@@ -67,8 +67,37 @@ impl GetDevicesFilterDto {
             };
 
             if let Some(cursor) = &self.cursor {
-                clauses.push([&sort_field, " ", direction, " ", cursor].concat());
+                let cursor_params: Vec<&str> = cursor.split(",").collect();
+
+                if cursor_params.len() != 2 {
+                    return Err(ApiError {
+                        code: StatusCode::BAD_REQUEST,
+                        message: "Malformed cursor.".to_string(),
+                    });
+                }
+
+                let cursor_value = cursor_params[0].to_string();
+                let cursor_id = cursor_params[1].to_string();
+
+                clauses.push(
+                    [
+                        "(",
+                        &sort_field,
+                        ", id)",
+                        direction,
+                        " (",
+                        &cursor_value,
+                        ", '",
+                        &cursor_id,
+                        "')",
+                    ]
+                    .concat(),
+                );
             }
+
+            // if let Some(cursor) = &self.cursor {
+            //     clauses.push([&sort_field, " ", direction, " ", cursor].concat());
+            // }
         }
 
         // CLAUSES BUILDER
@@ -87,6 +116,10 @@ impl GetDevicesFilterDto {
 
         // ORDER BY
         sql.push_str(&[" ORDER BY ", &sort_field, " ", &sort_order].concat());
+
+        if self.cursor.is_some() {
+            sql.push_str(&[", id ", &sort_order].concat());
+        }
 
         // LIMIT
         if let Some(limit) = self.limit {

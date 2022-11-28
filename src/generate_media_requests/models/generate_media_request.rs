@@ -24,7 +24,7 @@ impl GenerateMediaRequest {
             id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
             status: GenerateMediaRequestStatus::Processing.value().to_string(),
-            generate_media_dto: sqlx::types::Json(generate_media_dto.clone()),
+            generate_media_dto: sqlx::types::Json(generate_media_dto.sanitized()),
             created_at: time::current_time_in_secs() as i64,
         };
     }

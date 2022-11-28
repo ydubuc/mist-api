@@ -1,7 +1,7 @@
-use b2_backblaze::B2;
 use imagesize::ImageSize;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 use crate::{
     app::util::time,
@@ -14,7 +14,7 @@ use crate::{
 
 pub static MEDIA_SORTABLE_FIELDS: [&str; 1] = ["created_at"];
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Media {
     pub id: String,
     pub user_id: String,
@@ -37,17 +37,17 @@ impl Media {
         seed: Option<&str>,
         b2_upload_responses: &BackblazeUploadFileResponse,
         claims: &Claims,
-        b2: &B2,
+        b2_download_url: &str,
     ) -> Media {
         let download_url = [
-            &b2.downloadUrl,
+            b2_download_url,
             "/b2api/v1/b2_download_file_by_id?fileId=",
             &b2_upload_responses.file_id,
         ]
         .concat();
 
         return Media {
-            id: b2_upload_responses.file_id.to_string(),
+            id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,
@@ -68,17 +68,17 @@ impl Media {
         b2_upload_responses: &BackblazeUploadFileResponse,
         image_size: &ImageSize,
         claims: &Claims,
-        b2: &B2,
+        b2_download_url: &str,
     ) -> Media {
         let download_url = [
-            &b2.downloadUrl,
+            b2_download_url,
             "/b2api/v1/b2_download_file_by_id?fileId=",
             &b2_upload_responses.file_id,
         ]
         .concat();
 
         return Media {
-            id: b2_upload_responses.file_id.to_string(),
+            id: Uuid::new_v4().to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,

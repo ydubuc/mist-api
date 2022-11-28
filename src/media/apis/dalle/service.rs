@@ -63,7 +63,7 @@ pub fn spawn_generate_media_task(
 async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let dalle_generate_images_result = dalle_generate_images(dto, &state.envy.openai_api_key).await;
     let Ok(dalle_response) = dalle_generate_images_result
@@ -97,53 +97,13 @@ async fn generate_media(
         Ok(m) => Ok(m),
         Err(e) => Err(e),
     }
-
-    // let mut files_properties = Vec::new();
-
-    // for data in &dalle_response.data {
-    //     let Ok(bytes) = base64::decode(&data.b64_json)
-    //     else {
-    //         continue;
-    //     };
-
-    //     let uuid = Uuid::new_v4().to_string();
-    //     let file_properties = FileProperties {
-    //         id: uuid.to_string(),
-    //         field_name: uuid.to_string(),
-    //         file_name: uuid.to_string(),
-    //         mime_type: mime::IMAGE_PNG.to_string(),
-    //         data: Bytes::from(bytes),
-    //     };
-
-    //     files_properties.push(file_properties);
-    // }
-
-    // let sub_folder = Some(["media/", &claims.id].concat());
-    // match backblaze::service::upload_files(&files_properties, &sub_folder, &state.b2).await {
-    //     Ok(responses) => {
-    //         let media = Media::from_dto(dto, &responses, claims, &state.b2);
-
-    //         if media.len() == 0 {
-    //             return Err(ApiError {
-    //                 code: StatusCode::INTERNAL_SERVER_ERROR,
-    //                 message: "Failed to upload files.".to_string(),
-    //             });
-    //         }
-
-    //         match media::service::upload_media(media, &state.pool).await {
-    //             Ok(m) => Ok(m),
-    //             Err(e) => Err(e),
-    //         }
-    //     }
-    //     Err(e) => Err(e),
-    // }
 }
 
 async fn upload_image_and_create_media(
     dto: &GenerateMediaDto,
     dalle_data_base_64_json: &DalleDataBase64Json,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
     let Ok(bytes) = base64::decode(&dalle_data_base_64_json.b64_json)
     else {
@@ -164,7 +124,17 @@ async fn upload_image_and_create_media(
 
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
-        Ok(response) => Ok(Media::from_dto(dto, None, &response, claims, &state.b2)),
+        Ok(response) => {
+            let b2_download_url = &state.b2.read().await.download_url;
+
+            Ok(Media::from_dto(
+                dto,
+                None,
+                &response,
+                claims,
+                b2_download_url,
+            ))
+        }
         Err(e) => Err(e),
     }
 }

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
-use b2_backblaze::B2;
 use sqlx::PgPool;
+use tokio::sync::RwLock;
 
 use crate::{
     app::{
@@ -29,7 +29,7 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::backblaze,
+    util::backblaze::{self, b2::b2::B2},
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -281,7 +281,7 @@ pub async fn on_generate_media_completion(
             state.clone(),
         );
 
-        posts::service::create_post_with_media(
+        posts::service::create_post_with_media_as_admin(
             &generate_media_request.generate_media_dto,
             &media,
             &claims,
@@ -294,7 +294,7 @@ pub async fn on_generate_media_completion(
 pub async fn import_media(
     multipart: Multipart,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let files_properties = get_files_properties(multipart).await;
 
@@ -352,7 +352,7 @@ pub async fn import_media(
 async fn upload_image_from_import_and_create_media(
     file_properties: &FileProperties,
     claims: &Claims,
-    state: &AppState,
+    state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
     let Ok(size) = imagesize::blob_size(&file_properties.data)
     else {
@@ -364,7 +364,16 @@ async fn upload_image_from_import_and_create_media(
 
     let sub_folder = Some(["media/", &claims.id].concat());
     match backblaze::service::upload_file(file_properties, &sub_folder, &state.b2).await {
-        Ok(response) => Ok(Media::from_import(&response, &size, claims, &state.b2)),
+        Ok(response) => {
+            let b2_download_url = &state.b2.read().await.download_url;
+
+            Ok(Media::from_import(
+                &response,
+                &size,
+                claims,
+                b2_download_url,
+            ))
+        }
         Err(e) => Err(e),
     }
 }
@@ -490,7 +499,7 @@ pub async fn delete_media_by_id(
     id: &str,
     claims: &Claims,
     pool: &PgPool,
-    b2: &B2,
+    b2: &Arc<RwLock<B2>>,
 ) -> Result<(), ApiError> {
     match get_media_by_id(id, claims, pool).await {
         Ok(media) => {
