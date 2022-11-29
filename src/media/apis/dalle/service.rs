@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 use bytes::Bytes;
 use reqwest::{header, Response};
+use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
 extern crate reqwest;
@@ -93,7 +94,7 @@ async fn generate_media(
         });
     }
 
-    match media::service::upload_media(media, &state.pool).await {
+    match media::service::upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
         Err(e) => Err(e),
     }
@@ -123,7 +124,8 @@ async fn upload_image_and_create_media(
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+    match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
+    {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
@@ -137,6 +139,18 @@ async fn upload_image_and_create_media(
         }
         Err(e) => Err(e),
     }
+}
+
+async fn dalle_generate_images_with_retry(
+    dto: &GenerateMediaDto,
+    openai_api_key: &str,
+) -> Result<DalleGenerateImagesResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        dalle_generate_images(dto, openai_api_key).await
+    })
+    .await
 }
 
 async fn dalle_generate_images(

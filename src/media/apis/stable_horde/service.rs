@@ -1,8 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
+use rand::Rng;
 use reqwest::{header, StatusCode};
 use tokio::time::sleep;
+use tokio_retry::{
+    strategy::{ExponentialBackoff, FixedInterval},
+    Retry,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -113,7 +118,7 @@ async fn generate_media(
         });
     }
 
-    match media::service::upload_media(media, &state.pool).await {
+    match media::service::upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
         Err(e) => Err(e),
     }
@@ -143,7 +148,8 @@ async fn upload_image_and_create_media(
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+    match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
+    {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
@@ -163,7 +169,7 @@ async fn await_request_completion(
     dto: &GenerateMediaDto,
     stable_horde_api_key: &str,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
-    let generate_async_result = generate_async(dto, stable_horde_api_key).await;
+    let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key).await;
     let Ok(generate_async_response) = generate_async_result
     else {
         return Err(generate_async_result.unwrap_err());
@@ -173,7 +179,7 @@ async fn await_request_completion(
 
     sleep(Duration::from_millis(5000)).await;
 
-    let Ok(initial_check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
+    let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
     else {
         tracing::error!("failed to get request by id while awaiting stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
@@ -205,7 +211,7 @@ async fn await_request_completion(
 
         tracing::debug!("checking request {} after {}", id, wait_time);
 
-        let Ok(check_response) = get_request_by_id(&id, true, stable_horde_api_key).await
+        let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
         else {
             tracing::error!("failed to get request by id while awaiting stable horde request.");
             encountered_error = true;
@@ -228,13 +234,25 @@ async fn await_request_completion(
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let Ok(get_response) = get_request_by_id(&id, false, stable_horde_api_key).await
+    let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key).await
     else {
         tracing::error!("failed to get request full status by id for stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
     Ok(get_response)
+}
+
+async fn generate_async_with_retry(
+    dto: &GenerateMediaDto,
+    stable_horde_api_key: &str,
+) -> Result<StableHordeGenerateAsyncResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        generate_async(dto, stable_horde_api_key).await
+    })
+    .await
 }
 
 async fn generate_async(
@@ -277,6 +295,19 @@ async fn generate_async(
             Err(DefaultApiError::InternalServerError.value())
         }
     }
+}
+
+async fn get_request_by_id_with_retry(
+    id: &str,
+    check_only: bool,
+    stable_horde_api_key: &str,
+) -> Result<StableHordeGetRequestResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        get_request_by_id(&id, check_only, stable_horde_api_key).await
+    })
+    .await
 }
 
 async fn get_request_by_id(

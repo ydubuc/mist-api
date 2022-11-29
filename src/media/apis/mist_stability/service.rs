@@ -93,7 +93,7 @@ async fn generate_media(
         });
     }
 
-    match media::service::upload_media(media, &state.pool).await {
+    match media::service::upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
         Err(e) => Err(e),
     }
@@ -123,7 +123,8 @@ async fn upload_image_and_create_media(
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_file(&file_properties, &sub_folder, &state.b2).await {
+    match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
+    {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 

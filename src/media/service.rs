@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Multipart, http::StatusCode};
 use sqlx::PgPool;
 use tokio::sync::RwLock;
+use tokio_retry::{strategy::FixedInterval, Retry};
 
 use crate::{
     app::{
@@ -231,7 +232,7 @@ pub async fn on_generate_media_completion(
     };
 
     let edit_generate_media_request_by_id_as_tx_result =
-        generate_media_requests::service::edit_generate_media_request_by_id_as_tx(
+        generate_media_requests::service::edit_generate_media_request_by_id_as_tx_as_admin(
             &generate_media_request.id,
             status,
             &mut tx,
@@ -366,7 +367,7 @@ pub async fn import_media(
         });
     }
 
-    match upload_media(media, &state.pool).await {
+    match upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
         Err(e) => Err(e),
     }
@@ -386,7 +387,8 @@ async fn upload_image_from_import_and_create_media(
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_file(file_properties, &sub_folder, &state.b2).await {
+    match backblaze::service::upload_file_with_retry(file_properties, &sub_folder, &state.b2).await
+    {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
@@ -401,7 +403,19 @@ async fn upload_image_from_import_and_create_media(
     }
 }
 
-pub async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
+pub async fn upload_media_with_retry(
+    media: &Vec<Media>,
+    pool: &PgPool,
+) -> Result<Vec<Media>, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        upload_media(media.clone(), pool).await
+    })
+    .await
+}
+
+async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, ApiError> {
     // IMPORTANT NOTE
     // due to the genius who made this (that's me...)
     // you need to update the num_properties to match the number of

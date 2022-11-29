@@ -101,7 +101,7 @@ pub async fn get_generate_media_requests(
     }
 }
 
-pub async fn edit_generate_media_request_by_id(
+pub async fn edit_generate_media_request_by_id_as_admin(
     id: &str,
     status: &GenerateMediaRequestStatus,
     pool: &PgPool,
@@ -132,7 +132,7 @@ pub async fn edit_generate_media_request_by_id(
     }
 }
 
-pub async fn edit_generate_media_request_by_id_as_tx(
+pub async fn edit_generate_media_request_by_id_as_tx_as_admin(
     id: &str,
     status: &GenerateMediaRequestStatus,
     tx: &mut sqlx::Transaction<'_, Postgres>,
