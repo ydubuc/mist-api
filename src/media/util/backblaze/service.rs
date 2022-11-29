@@ -3,6 +3,7 @@ use std::sync::Arc;
 use reqwest::header;
 use serde_json::json;
 use tokio::sync::RwLock;
+use tokio_retry::{strategy::FixedInterval, Retry};
 
 use crate::{
     app::{
@@ -36,7 +37,20 @@ use super::{
 //     futures::future::join_all(futures).await
 // }
 
-pub async fn upload_file(
+pub async fn upload_file_with_retry(
+    file_properties: &FileProperties,
+    sub_folder: &Option<String>,
+    b2: &Arc<RwLock<B2>>,
+) -> Result<BackblazeUploadFileResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        upload_file(file_properties, sub_folder, b2).await
+    })
+    .await
+}
+
+async fn upload_file(
     file_properties: &FileProperties,
     sub_folder: &Option<String>,
     b2: &Arc<RwLock<B2>>,

@@ -16,7 +16,7 @@ pub struct GetGenerateMediaRequestsFilterDto {
     pub status: Option<String>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
-    #[validate(range(min = 1, max = 100, message = "limit must equal or less than 100."))]
+    #[validate(range(min = 1, max = 100, message = "limit must be equal or less than 100."))]
     pub limit: Option<u8>,
 }
 
