@@ -29,7 +29,10 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::backblaze::{self, b2::b2::B2},
+    util::{
+        backblaze::{self, b2::b2::B2},
+        openai,
+    },
 };
 
 const SUPPORTED_GENERATORS: [&str; 3] = [
@@ -56,8 +59,7 @@ pub async fn generate_media(
         Err(e) => return Err(e),
     }
 
-    let get_generate_media_request_result =
-        get_generate_media_request(dto, claims, &state.pool).await;
+    let get_generate_media_request_result = get_generate_media_request(dto, claims, state).await;
     let Ok(generate_media_request) = get_generate_media_request_result
     else {
         return Err(get_generate_media_request_result.unwrap_err());
@@ -105,7 +107,7 @@ fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
         true => Ok(()),
         false => Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: "This size format is currently not supported".to_string(),
+            message: "This size format is currently not supported.".to_string(),
         }),
     }
 }
@@ -113,9 +115,9 @@ fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
 async fn get_generate_media_request(
     dto: &GenerateMediaDto,
     claims: &Claims,
-    pool: &PgPool,
+    state: &Arc<AppState>,
 ) -> Result<GenerateMediaRequest, ApiError> {
-    let user = match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
+    let user = match users::service::get_user_by_id_as_admin(&claims.id, &state.pool).await {
         Ok(user) => user,
         Err(e) => return Err(e),
     };
@@ -129,8 +131,29 @@ async fn get_generate_media_request(
         });
     }
 
+    let openai_moderation_response_result =
+        openai::moderation::check_prompt(&dto.prompt, &state.envy.openai_api_key).await;
+    if let Err(e) = openai_moderation_response_result {
+        tracing::error!("{:?}", e);
+    } else {
+        let openai_moderation_response = openai_moderation_response_result.unwrap();
+
+        tracing::debug!("{:?}", openai_moderation_response);
+
+        if let Some(result) = openai_moderation_response.results.first() {
+            if result.flagged {
+                tracing::info!("prompt was flagged: {:?}", dto.prompt);
+
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: "Your prompt was flagged for inappropriate content.".to_string(),
+                });
+            }
+        }
+    }
+
     // TODO: retry making tx multiple times
-    let Ok(mut tx) = pool.begin().await
+    let Ok(mut tx) = state.pool.begin().await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
