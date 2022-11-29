@@ -204,13 +204,13 @@ async fn parse_response_to_mist_stability_generate_images_response(
 }
 
 pub fn is_valid_size(width: &u16, height: &u16) -> bool {
-    let valid_widths: [u16; 3] = [512, 640, 1024];
+    let valid_widths: [u16; 3] = [512, 768, 1024];
 
     if !valid_widths.contains(width) {
         return false;
     }
 
-    let valid_heights: [u16; 3] = [512, 640, 1024];
+    let valid_heights: [u16; 3] = [512, 768, 1024];
 
     if !valid_heights.contains(height) {
         return false;
