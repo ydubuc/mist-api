@@ -33,6 +33,7 @@ pub struct Media {
 
 impl Media {
     pub fn from_dto(
+        id: &str,
         dto: &GenerateMediaDto,
         seed: Option<&str>,
         b2_upload_responses: &BackblazeUploadFileResponse,
@@ -47,7 +48,7 @@ impl Media {
         .concat();
 
         return Media {
-            id: Uuid::new_v4().to_string(),
+            id: id.to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,
@@ -65,6 +66,7 @@ impl Media {
     }
 
     pub fn from_import(
+        id: &str,
         b2_upload_responses: &BackblazeUploadFileResponse,
         image_size: &ImageSize,
         claims: &Claims,
@@ -78,7 +80,7 @@ impl Media {
         .concat();
 
         return Media {
-            id: Uuid::new_v4().to_string(),
+            id: id.to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             url: download_url,

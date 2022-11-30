@@ -393,6 +393,7 @@ async fn upload_image_from_import_and_create_media(
             let b2_download_url = &state.b2.read().await.download_url;
 
             Ok(Media::from_import(
+                &file_properties.id,
                 &response,
                 &size,
                 claims,
@@ -540,7 +541,7 @@ pub async fn delete_media_by_id(
 ) -> Result<(), ApiError> {
     match get_media_by_id(id, claims, pool).await {
         Ok(media) => {
-            let file_name = ["media/", &claims.id, "/", id].concat();
+            let file_name = ["media/", &claims.id, "/", &media.id].concat();
             match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
                 Ok(_) => {
                     let sqlx_result = sqlx::query(

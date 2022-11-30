@@ -154,6 +154,7 @@ async fn upload_image_and_create_media(
             let b2_download_url = &state.b2.read().await.download_url;
 
             Ok(Media::from_dto(
+                &file_properties.id,
                 dto,
                 Some(&stable_horde_generation.seed),
                 &response,
