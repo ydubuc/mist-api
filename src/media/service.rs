@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use tokio::sync::RwLock;
 use tokio_retry::{strategy::FixedInterval, Retry};
 
@@ -9,8 +9,9 @@ use crate::{
     app::{
         errors::DefaultApiError,
         models::api_error::ApiError,
-        util::multipart::{
-            models::file_properties::FileProperties, multipart::get_files_properties,
+        util::{
+            self,
+            multipart::{models::file_properties::FileProperties, multipart::get_files_properties},
         },
     },
     auth::jwt::models::claims::Claims,
@@ -153,7 +154,6 @@ async fn get_generate_media_request(
         }
     }
 
-    // TODO: retry making tx multiple times
     let Ok(mut tx) = state.pool.begin().await
     else {
         return Err(ApiError {
@@ -224,10 +224,9 @@ pub async fn on_generate_media_completion(
     claims: &Claims,
     state: &Arc<AppState>,
 ) {
-    // TODO: retry making tx multiple times
-    let Ok(mut tx) = state.pool.begin().await
+    let Ok(mut tx) = util::sqlx::aquire_tx_with_retry(&state.pool).await
     else {
-        tracing::error!("Failed to begin pool transaction.");
+        tracing::error!("failed to begin pool transaction.");
         return;
     };
 
@@ -289,12 +288,9 @@ pub async fn on_generate_media_completion(
         return;
     }
 
-    match tx.commit().await {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::error!(%e);
-            return;
-        }
+    if let Err(e) = tx.commit().await {
+        tracing::error!(%e);
+        return;
     }
 
     if let Some(media) = media {

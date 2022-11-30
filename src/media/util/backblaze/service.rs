@@ -55,7 +55,7 @@ async fn upload_file(
     sub_folder: &Option<String>,
     b2: &Arc<RwLock<B2>>,
 ) -> Result<BackblazeUploadFileResponse, ApiError> {
-    let upload_url_result = get_upload_url(b2).await;
+    let upload_url_result = get_upload_url_with_retry(b2).await;
 
     match upload_url_result {
         Ok(upload_url_res) => {
@@ -110,6 +110,14 @@ async fn upload_file(
         }
         Err(e) => Err(e),
     }
+}
+
+pub async fn get_upload_url_with_retry(
+    b2: &Arc<RwLock<B2>>,
+) -> Result<BackblazeUploadUrlResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async { get_upload_url(b2).await }).await
 }
 
 async fn get_upload_url(b2: &Arc<RwLock<B2>>) -> Result<BackblazeUploadUrlResponse, ApiError> {
