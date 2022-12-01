@@ -1,39 +1,32 @@
-use axum::http::StatusCode;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::{
-    app::models::api_error::ApiError, auth::jwt::models::claims::Claims, posts::models::post::Post,
-};
+use crate::{app::models::api_error::ApiError, blocks::models::block::Block};
 
 #[derive(Debug, Deserialize, Validate)]
-pub struct GetPostsFilterDto {
-    #[validate(length(equal = 36, message = "id must be 36 characters."))]
+pub struct GetBlocksFilterDto {
     pub id: Option<String>,
     #[validate(length(equal = 36, message = "user_id must be 36 characters."))]
     pub user_id: Option<String>,
-    #[validate(length(
-        min = 3,
-        max = 512,
-        message = "search must be between 3 and 512 characters."
-    ))]
-    pub search: Option<String>,
+    #[validate(length(equal = 36, message = "blocked_id must be 36 characters."))]
+    pub blocked_id: Option<String>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(min = 1, max = 100, message = "limit must equal or less than 100."))]
     pub limit: Option<u8>,
 }
 
-impl GetPostsFilterDto {
-    pub fn to_sql(&self, claims: &Claims) -> Result<String, ApiError> {
-        let mut sql = "SELECT posts.*".to_string();
+impl GetBlocksFilterDto {
+    pub fn to_sql(&self) -> Result<String, ApiError> {
+        let mut sql = "SELECT blocks.*".to_string();
 
         // JOIN USER
-        sql.push_str(", users.id as user_id, users.username as user_username, users.displayname as user_displayname, users.avatar_url as user_avatar_url FROM posts LEFT JOIN users ON posts.user_id = users.id");
+        sql.push_str(", users.id as user_id, users.username as user_username, users.displayname as user_displayname FROM blocks LEFT JOIN users ON blocks.blocked_id = users.id");
 
         let mut clauses = Vec::new();
 
-        let mut sort_field = "created_at".to_string();
+        let mut sort_field = "blocked_at".to_string();
         let mut sort_order = "DESC".to_string();
         let mut page_limit: u8 = 50;
 
@@ -42,27 +35,16 @@ impl GetPostsFilterDto {
         // WHERE CLAUSES
         if self.id.is_some() {
             index += 1;
-            clauses.push(["posts.id = $", &index.to_string()].concat());
+            clauses.push(["id = $", &index.to_string()].concat());
         }
         if self.user_id.is_some() {
             index += 1;
-            clauses.push(["posts.user_id = $", &index.to_string()].concat());
+            clauses.push(["user_id = $", &index.to_string()].concat());
         }
-        if self.search.is_some() {
+        if self.blocked_id.is_some() {
             index += 1;
-            clauses.push(["posts.title LIKE $", &index.to_string()].concat());
+            clauses.push(["blocked_id = $", &index.to_string()].concat());
         }
-
-        // FILTER BLOCKED USERS
-        clauses.push(
-            [
-                "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.user_id = '",
-                &claims.id,
-                "' AND ",
-                "blocks.blocked_id = posts.user_id)",
-            ]
-            .concat(),
-        );
 
         // SORT
         if let Some(sort) = &self.sort {
@@ -74,7 +56,7 @@ impl GetPostsFilterDto {
                     message: "Malformed sort query.".to_string(),
                 });
             }
-            if !Post::sortable_fields().contains(&sort_params[0]) {
+            if !Block::sortable_fields().contains(&sort_params[0]) {
                 return Err(ApiError {
                     code: StatusCode::BAD_REQUEST,
                     message: "Invalid sort field.".to_string(),
@@ -110,9 +92,9 @@ impl GetPostsFilterDto {
 
                 clauses.push(
                     [
-                        "(posts.",
+                        "(blocks.",
                         &sort_field,
-                        ", posts.id) ",
+                        ", blocks.id) ",
                         direction,
                         " (",
                         &cursor_value,
@@ -123,10 +105,6 @@ impl GetPostsFilterDto {
                     .concat(),
                 );
             }
-
-            // if let Some(cursor) = &self.cursor {
-            //     clauses.push(["posts.", &sort_field, " ", direction, " ", cursor].concat());
-            // }
         }
 
         // CLAUSES BUILDER
@@ -144,10 +122,10 @@ impl GetPostsFilterDto {
         }
 
         // ORDER BY
-        sql.push_str(&[" ORDER BY posts.", &sort_field, " ", &sort_order].concat());
+        sql.push_str(&[" ORDER BY blocks.", &sort_field, " ", &sort_order].concat());
 
         if self.cursor.is_some() {
-            sql.push_str(&[", posts.id ", &sort_order].concat());
+            sql.push_str(&[", blocks.id ", &sort_order].concat());
         }
 
         // LIMIT
