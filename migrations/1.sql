@@ -30,6 +30,7 @@ CREATE TABLE devices(
     created_at BIGINT NOT NULL
 );
 
+CREATE INDEX devices_user_id ON devices (user_id);
 CREATE INDEX devices_updated_at ON devices (updated_at);
 CREATE INDEX devices_created_at ON devices (created_at);
 
@@ -45,6 +46,7 @@ CREATE TABLE posts(
     created_at BIGINT NOT NULL
 );
 
+CREATE INDEX posts_user_id ON posts (user_id);
 CREATE INDEX posts_updated_at ON posts (updated_at);
 CREATE INDEX posts_created_at ON posts (created_at);
 
@@ -68,7 +70,7 @@ CREATE TABLE media(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX media_mime_type ON media (mime_type);
+CREATE INDEX media_user_id ON media (user_id);
 CREATE INDEX media_created_at ON media (created_at);
 
 CREATE TABLE generate_media_requests(
@@ -79,6 +81,7 @@ CREATE TABLE generate_media_requests(
     created_at BIGINT NOT NULL
 );
 
+CREATE INDEX generate_media_requests_user_id ON generate_media_requests (user_id);
 CREATE INDEX generate_media_requests_status ON generate_media_requests (status);
 CREATE INDEX generate_media_requests_created_at ON generate_media_requests (created_at);
 
@@ -96,4 +99,16 @@ CREATE TABLE follows(
     followed_at BIGINT NOT NULL
 );
 
+CREATE INDEX follows_follows_id ON follows (follows_id);
 CREATE INDEX follows_followed_at ON follows (followed_at);
+
+CREATE TABLE blocks(
+    id TEXT PRIMARY KEY,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
+    blocked_at BIGINT NOT NULL
+);
+
+CREATE INDEX blocks_user_id ON blocks (user_id);
+CREATE INDEX blocks_blocked_id ON blocks (blocked_id);
+CREATE INDEX blocks_blocked_at ON blocks (blocked_at);

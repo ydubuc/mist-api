@@ -126,10 +126,10 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
 
 pub async fn get_posts(
     dto: &GetPostsFilterDto,
-    _claims: &Claims,
+    claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<Post>, ApiError> {
-    let sql_result = dto.to_sql();
+    let sql_result = dto.to_sql(claims);
     let Ok(sql) = sql_result
     else {
         return Err(sql_result.err().unwrap());

@@ -9,23 +9,23 @@ use crate::{
     auth::jwt::models::claims::Claims,
 };
 
-use super::{dtos::get_follows_filter_dto::GetFollowsFilterDto, models::follow::Follow};
+use super::{dtos::get_blocks_filter_dto::GetBlocksFilterDto, models::block::Block};
 
-pub async fn follow(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
-    let follow = Follow::new(claims, id);
+pub async fn block(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
+    let block = Block::new(claims, id);
 
     let sqlx_result = sqlx::query(
         "
-        INSERT INTO follows (
-            id, user_id, follows_id, followed_at
+        INSERT INTO blocks (
+            id, user_id, blocked_id, blocked_at
         )
         VALUES ($1, $2, $3, $4)
         ",
     )
-    .bind(follow.id)
-    .bind(follow.user_id)
-    .bind(follow.follows_id)
-    .bind(follow.followed_at)
+    .bind(block.id)
+    .bind(block.user_id)
+    .bind(block.blocked_id)
+    .bind(block.blocked_at)
     .execute(pool)
     .await;
 
@@ -55,18 +55,18 @@ pub async fn follow(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiE
     }
 }
 
-pub async fn get_follows(
-    dto: &GetFollowsFilterDto,
+pub async fn get_blocks(
+    dto: &GetBlocksFilterDto,
     _claims: &Claims,
     pool: &PgPool,
-) -> Result<Vec<Follow>, ApiError> {
+) -> Result<Vec<Block>, ApiError> {
     let sql_result = dto.to_sql();
     let Ok(sql) = sql_result
     else {
         return Err(sql_result.err().unwrap());
     };
 
-    let mut sqlx = sqlx::query_as::<_, Follow>(&sql);
+    let mut sqlx = sqlx::query_as::<_, Block>(&sql);
 
     if let Some(id) = &dto.id {
         sqlx = sqlx.bind(id);
@@ -74,12 +74,12 @@ pub async fn get_follows(
     if let Some(user_id) = &dto.user_id {
         sqlx = sqlx.bind(user_id);
     }
-    if let Some(follows_id) = &dto.follows_id {
-        sqlx = sqlx.bind(follows_id);
+    if let Some(blocked_id) = &dto.blocked_id {
+        sqlx = sqlx.bind(blocked_id);
     }
 
     match sqlx.fetch_all(pool).await {
-        Ok(follows) => Ok(follows),
+        Ok(blocks) => Ok(blocks),
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())
@@ -87,10 +87,10 @@ pub async fn get_follows(
     }
 }
 
-pub async fn unfollow(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
+pub async fn unblock(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {
     let sqlx_result = sqlx::query(
         "
-        DELETE FROM follows
+        DELETE FROM blocks
         WHERE id = $1
         ",
     )

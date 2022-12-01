@@ -25,6 +25,7 @@ use crate::{
 
 mod app;
 mod auth;
+mod blocks;
 mod devices;
 mod follows;
 mod generate_media_requests;
@@ -161,6 +162,10 @@ async fn main() {
         .route("/follow/:id", post(follows::controller::follow))
         .route("/follows", get(follows::controller::get_follows))
         .route("/follow/:id", delete(follows::controller::unfollow))
+        // BLOCKS
+        .route("/block/:id", post(blocks::controller::block))
+        .route("/blocks", get(blocks::controller::get_blocks))
+        .route("/block/:id", delete(blocks::controller::unblock))
         // LAYERS
         .layer(cors)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
