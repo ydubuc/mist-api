@@ -359,7 +359,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
             seed_variation: None,
             post_processing: Some(vec!["GFPGAN".to_string()]),
             karras: None,
-            steps: Some(40),
+            steps: Some(50),
             n: Some(dto.number),
         }),
         nsfw: Some(false),
