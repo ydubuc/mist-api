@@ -64,7 +64,6 @@ async fn login(b2: &mut B2) -> Result<(), &'static str> {
     match result {
         Ok(res) => match res.text().await {
             Ok(text) => {
-                //
                 let b2_authorize_response_result: Result<
                     B2AuthorizeAccountResponse,
                     serde_json::Error,
@@ -78,7 +77,6 @@ async fn login(b2: &mut B2) -> Result<(), &'static str> {
                         b2.download_url = b2_authorize_response.download_url;
                         b2.token_time = Instant::now();
 
-                        tracing::info!("logged in to backblaze b2 with new token");
                         return Ok(());
                     }
                     Err(_) => {
