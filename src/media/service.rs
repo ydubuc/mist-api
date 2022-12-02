@@ -217,18 +217,42 @@ async fn get_generate_media_request(
     }
 }
 
-pub async fn on_generate_media_completion(
+pub async fn on_generate_media_completion_with_retry(
     generate_media_request: &GenerateMediaRequest,
     status: &GenerateMediaRequestStatus,
     media: &Option<Vec<Media>>,
     claims: &Claims,
     state: &Arc<AppState>,
-) {
-    let Ok(mut tx) = util::sqlx::aquire_tx_with_retry(&state.pool).await
+) -> Result<(), ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(6);
+
+    Retry::spawn(retry_strategy, || async {
+        on_generate_media_completion(generate_media_request, status, media, claims, state).await
+    })
+    .await
+}
+
+async fn on_generate_media_completion(
+    generate_media_request: &GenerateMediaRequest,
+    status: &GenerateMediaRequestStatus,
+    media: &Option<Vec<Media>>,
+    claims: &Claims,
+    state: &Arc<AppState>,
+) -> Result<(), ApiError> {
+    let Ok(mut tx) = state.pool.begin().await
     else {
         tracing::error!("failed to begin pool transaction.");
-        return;
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to begin pool transaction.".to_string()
+        });
     };
+
+    // let Ok(mut tx) = util::sqlx::aquire_tx_with_retry(&state.pool).await
+    // else {
+    //     tracing::error!("failed to begin pool transaction.");
+    //     return;
+    // };
 
     let edit_generate_media_request_by_id_as_tx_result =
         generate_media_requests::service::edit_generate_media_request_by_id_as_tx_as_admin(
@@ -247,7 +271,10 @@ pub async fn on_generate_media_completion(
             tracing::warn!("rolled back edit_generate_media_request_by_id_as_tx_result");
         }
 
-        return;
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete edit_generate_media_request_by_id_as_tx".to_string(),
+        });
     }
 
     let media_generated: u8 = match media {
@@ -285,12 +312,18 @@ pub async fn on_generate_media_completion(
             tracing::warn!("rolled back edit_user_ink_by_id_result");
         }
 
-        return;
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete edit_user_ink_by_id".to_string(),
+        });
     }
 
     if let Err(e) = tx.commit().await {
         tracing::error!(%e);
-        return;
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to commit tx".to_string(),
+        });
     }
 
     if let Some(media) = media {
@@ -309,6 +342,8 @@ pub async fn on_generate_media_completion(
         )
         .await;
     }
+
+    Ok(())
 }
 
 pub async fn import_media(

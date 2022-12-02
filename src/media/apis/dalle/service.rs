@@ -50,7 +50,7 @@ pub fn spawn_generate_media_task(
             }
         }
 
-        media::service::on_generate_media_completion(
+        media::service::on_generate_media_completion_with_retry(
             &generate_media_request,
             &status,
             &media,
