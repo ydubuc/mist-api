@@ -182,7 +182,7 @@ async fn await_request_completion(
 
     let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
     else {
-        tracing::error!("failed to get request by id while awaiting stable horde request.");
+        tracing::error!("failed to get initial request by id while awaiting stable horde request.");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -231,7 +231,11 @@ async fn await_request_completion(
     }
 
     if request.faulted {
-        tracing::error!("stable horde task finished with error: {:?}", request);
+        tracing::error!("stable horde task faulted: {:?}", request);
+        return Err(DefaultApiError::InternalServerError.value());
+    }
+    if encountered_error {
+        tracing::error!("stable horde task encountered error: {:?}", request);
         return Err(DefaultApiError::InternalServerError.value());
     }
 
@@ -303,7 +307,11 @@ async fn get_request_by_id_with_retry(
     check_only: bool,
     stable_horde_api_key: &str,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
-    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+    let retry_strategy = FixedInterval::from_millis(match check_only {
+        true => 10000,
+        false => 31000,
+    })
+    .take(3);
 
     Retry::spawn(retry_strategy, || async {
         get_request_by_id(&id, check_only, stable_horde_api_key).await
