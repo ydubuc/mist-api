@@ -241,18 +241,12 @@ async fn on_generate_media_completion(
 ) -> Result<(), ApiError> {
     let Ok(mut tx) = state.pool.begin().await
     else {
-        tracing::error!("failed to begin pool transaction.");
+        tracing::warn!("on_generate_media_completion failed to begin pool transaction");
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Failed to begin pool transaction.".to_string()
         });
     };
-
-    // let Ok(mut tx) = util::sqlx::aquire_tx_with_retry(&state.pool).await
-    // else {
-    //     tracing::error!("failed to begin pool transaction.");
-    //     return;
-    // };
 
     let edit_generate_media_request_by_id_as_tx_result =
         generate_media_requests::service::edit_generate_media_request_by_id_as_tx_as_admin(
@@ -266,9 +260,9 @@ async fn on_generate_media_completion(
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::warn!("on_generate_media_completion failed to rollback edit_generate_media_request_by_id_as_tx_result: {:?}", e);
         } else {
-            tracing::warn!("rolled back edit_generate_media_request_by_id_as_tx_result");
+            tracing::warn!("on_generate_media_completion rolled back edit_generate_media_request_by_id_as_tx_result");
         }
 
         return Err(ApiError {
@@ -307,9 +301,12 @@ async fn on_generate_media_completion(
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::warn!(
+                "on_generate_media_completion failed to roll back edit_user_ink_by_id_result: {:?}",
+                e
+            );
         } else {
-            tracing::warn!("rolled back edit_user_ink_by_id_result");
+            tracing::warn!("on_generate_media_completion rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {
@@ -319,7 +316,7 @@ async fn on_generate_media_completion(
     }
 
     if let Err(e) = tx.commit().await {
-        tracing::error!(%e);
+        tracing::warn!("on_generate_media_completion failed to commit tx: {:?}", e);
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Failed to commit tx".to_string(),
@@ -400,7 +397,10 @@ pub async fn import_media(
 
     match upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("import_media failed upload_media_with_retry: {:?}", e);
+            Err(e)
+        }
     }
 }
 
@@ -431,7 +431,13 @@ async fn upload_image_from_import_and_create_media(
                 b2_download_url,
             ))
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!(
+                "upload_image_from_import_and_create_media failed upload_file_with_retry: {:?}",
+                e
+            );
+            Err(e)
+        }
     }
 }
 
@@ -501,7 +507,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
     match sqlx.execute(pool).await {
         Ok(_) => Ok(media),
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("upload_media: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
