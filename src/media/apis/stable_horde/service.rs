@@ -371,7 +371,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
             n: Some(dto.number),
         }),
         nsfw: Some(false),
-        trusted_workers: Some(false),
+        trusted_workers: Some(true),
         censor_nsfw: Some(false),
         workers: None,
         // workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
