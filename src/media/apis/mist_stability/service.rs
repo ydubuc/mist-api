@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use reqwest::{header, Response, StatusCode};
+use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
 use crate::{
@@ -95,7 +96,10 @@ async fn generate_media(
 
     match media::service::upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("generate_media failed upload_media_with_retry");
+            Err(e)
+        }
     }
 }
 
@@ -137,8 +141,23 @@ async fn upload_image_and_create_media(
                 b2_download_url,
             ))
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("upload_image_and_create_media failed upload_file_with_retry");
+            Err(e)
+        }
     }
+}
+
+async fn mist_stability_generate_images_with_retry(
+    dto: &GenerateMediaDto,
+    mist_stability_api_key: &str,
+) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        mist_stability_generate_images(dto, mist_stability_api_key).await
+    })
+    .await
 }
 
 async fn mist_stability_generate_images(
@@ -167,9 +186,23 @@ async fn mist_stability_generate_images(
         .await;
 
     match result {
-        Ok(res) => parse_response_to_mist_stability_generate_images_response(res).await,
+        Ok(res) => match res.text().await {
+            Ok(text) => match serde_json::from_str(&text) {
+                Ok(mist_stability_generate_images_response) => {
+                    Ok(mist_stability_generate_images_response)
+                }
+                Err(_) => {
+                    tracing::error!("mist_stability_generate_images (1): {:?}", text);
+                    Err(DefaultApiError::InternalServerError.value())
+                }
+            },
+            Err(e) => {
+                tracing::error!("mist_stability_generate_images (2): {:?}", e);
+                Err(DefaultApiError::InternalServerError.value())
+            }
+        },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("mist_stability_generate_images (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -182,26 +215,6 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         height: dto.height,
         number: dto.number,
         steps: Some(50),
-    }
-}
-
-async fn parse_response_to_mist_stability_generate_images_response(
-    res: Response,
-) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
-    match res.text().await {
-        Ok(text) => match serde_json::from_str(&text) {
-            Ok(mist_stability_generate_images_response) => {
-                Ok(mist_stability_generate_images_response)
-            }
-            Err(_) => {
-                tracing::error!(%text);
-                Err(DefaultApiError::InternalServerError.value())
-            }
-        },
-        Err(e) => {
-            tracing::error!(%e);
-            Err(DefaultApiError::InternalServerError.value())
-        }
     }
 }
 

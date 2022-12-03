@@ -1,13 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
-use rand::Rng;
 use reqwest::{header, StatusCode};
 use tokio::time::sleep;
-use tokio_retry::{
-    strategy::{ExponentialBackoff, FixedInterval},
-    Retry,
-};
+use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
 use crate::{
@@ -50,7 +46,6 @@ pub fn spawn_generate_media_task(
                 media = Some(_media);
             }
             Err(e) => {
-                tracing::error!("{:?}", e);
                 status = GenerateMediaRequestStatus::Error;
                 media = None;
             }
@@ -90,8 +85,9 @@ async fn generate_media(
     };
 
     tracing::debug!(
-        "request processed by {}",
-        generations.first().unwrap().worker_name
+        "request processed worker: {}, id: {}",
+        generations.first().unwrap().worker_name,
+        generations.first().unwrap().worker_id
     );
 
     let mut futures = Vec::with_capacity(generations.len());
@@ -120,7 +116,10 @@ async fn generate_media(
 
     match media::service::upload_media_with_retry(&media, &state.pool).await {
         Ok(m) => Ok(m),
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("generate_media failed upload_media_with_retry");
+            Err(e)
+        }
     }
 }
 
@@ -162,7 +161,10 @@ async fn upload_image_and_create_media(
                 b2_download_url,
             ))
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            tracing::error!("upload_image_and_create_media failed upload_file_with_retry");
+            Err(e)
+        }
     }
 }
 
@@ -173,6 +175,7 @@ async fn await_request_completion(
     let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key).await;
     let Ok(generate_async_response) = generate_async_result
     else {
+        tracing::error!("await_request_completion failed generate_async_with_retry");
         return Err(generate_async_result.unwrap_err());
     };
 
@@ -182,12 +185,15 @@ async fn await_request_completion(
 
     let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
     else {
-        tracing::error!("failed to get initial request by id while awaiting stable horde request.");
+        tracing::error!("await_request_completion failed get_request_by_id_with_retry (initial check)");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
     if !initial_check_response.is_possible {
-        tracing::error!("failed to generate stable horde request. (request is not possible)");
+        tracing::error!(
+            "await_request_completion failed (request is not possible): {:?}",
+            dto
+        );
         return Err(DefaultApiError::InternalServerError.value());
     }
 
@@ -214,7 +220,7 @@ async fn await_request_completion(
 
         let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
         else {
-            tracing::error!("failed to get request by id while awaiting stable horde request.");
+            tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
             continue;
         };
@@ -231,17 +237,20 @@ async fn await_request_completion(
     }
 
     if request.faulted {
-        tracing::error!("stable horde task faulted: {:?}", request);
+        tracing::error!("await_request_completion failed (faulted): {:?}", request);
         return Err(DefaultApiError::InternalServerError.value());
     }
     if encountered_error {
-        tracing::error!("stable horde task encountered error: {:?}", request);
+        tracing::error!(
+            "await_request_completion failed (encountered error): {:?}",
+            request
+        );
         return Err(DefaultApiError::InternalServerError.value());
     }
 
     let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key).await
     else {
-        tracing::error!("failed to get request full status by id for stable horde request.");
+        tracing::error!("await_request_completion failed get_request_by_id_with_retry (full)");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -286,17 +295,17 @@ async fn generate_async(
                     Ok(stable_horde_generate_async_response)
                 }
                 Err(_) => {
-                    tracing::error!(%text);
+                    tracing::warn!("generate_async (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             },
             Err(e) => {
-                tracing::error!(%e);
+                tracing::warn!("generate_async (2): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("generate_async (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -338,17 +347,17 @@ async fn get_request_by_id(
             Ok(text) => match serde_json::from_str(&text) {
                 Ok(stable_horde_get_request_response) => Ok(stable_horde_get_request_response),
                 Err(_) => {
-                    tracing::error!(%text);
+                    tracing::warn!("get_request_by_id (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             },
             Err(e) => {
-                tracing::error!(%e);
+                tracing::warn!("get_request_by_id (2): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("get_request_by_id (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }

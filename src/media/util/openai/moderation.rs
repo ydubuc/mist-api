@@ -41,7 +41,7 @@ pub async fn check_prompt(
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("check_prompt, {:?}", e);
             Err(ApiError {
                 code: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "Failed to check prompt.".to_string(),

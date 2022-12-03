@@ -93,17 +93,17 @@ async fn upload_file(
                     Ok(text) => match serde_json::from_str(&text) {
                         Ok(upload_file_res) => Ok(upload_file_res),
                         Err(_) => {
-                            tracing::error!(%text);
+                            tracing::warn!("upload_file (1): {:?}", text);
                             return Err(DefaultApiError::InternalServerError.value());
                         }
                     },
                     Err(e) => {
-                        tracing::error!(%e);
+                        tracing::warn!("upload_file (2): {:?}", e);
                         return Err(DefaultApiError::InternalServerError.value());
                     }
                 },
                 Err(e) => {
-                    tracing::error!(%e);
+                    tracing::warn!("upload_file (3): {:?}", e);
                     return Err(DefaultApiError::InternalServerError.value());
                 }
             }
@@ -147,17 +147,17 @@ async fn get_upload_url(b2: &Arc<RwLock<B2>>) -> Result<BackblazeUploadUrlRespon
             Ok(text) => match serde_json::from_str(&text) {
                 Ok(upload_url_res) => Ok(upload_url_res),
                 Err(_) => {
-                    tracing::error!(%text);
+                    tracing::warn!("get_upload_url (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             },
             Err(e) => {
-                tracing::error!(%e);
+                tracing::warn!("get_upload_url (2): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("get_upload_url (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -203,23 +203,23 @@ pub async fn delete_file(
                         match delete_file_error.code.as_ref() {
                             BackBlazeDeleteFileErrorCode::FILE_NOT_PRESENT => return Ok(None),
                             _ => {
-                                tracing::error!(%text);
+                                tracing::error!("delete_file (1): {:?}", text);
                                 Err(DefaultApiError::InternalServerError.value())
                             }
                         }
                     } else {
-                        tracing::error!(%text);
+                        tracing::error!("delete_file (2): {:?}", text);
                         Err(DefaultApiError::InternalServerError.value())
                     }
                 }
             },
             Err(e) => {
-                tracing::error!(%e);
+                tracing::error!("delete_file (3): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("delete_file (4): {:?}", e);
             return Err(DefaultApiError::InternalServerError.value());
         }
     }
@@ -235,7 +235,7 @@ async fn check_token(b2: &Arc<RwLock<B2>>) {
 
         match b2.check_token().await {
             Ok(_) => tracing::info!("updated b2 token"),
-            Err(e) => tracing::error!(%e),
+            Err(e) => tracing::error!("check_token: {:?}", e),
         }
     }
 }
