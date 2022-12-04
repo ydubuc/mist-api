@@ -66,6 +66,10 @@ pub async fn create_post_with_media_as_admin(
         title: generate_media_dto.prompt.to_string(),
         content: None,
         media_ids: None,
+        publish: match generate_media_dto.publish {
+            Some(publish) => publish,
+            None => true,
+        },
     };
 
     let post = Post::new(claims, &dto, Some(media.to_vec()));
@@ -78,9 +82,9 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
         "
         INSERT INTO posts (
             id, user_id, title, content, media,
-            generate_media_dto, reports_count, updated_at, created_at
+            generate_media_dto, published, reports_count, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ",
     )
     .bind(&post.id)
@@ -89,6 +93,7 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     .bind(&post.content)
     .bind(&post.media)
     .bind(&post.generate_media_dto)
+    .bind(&post.published)
     .bind(&post.reports_count)
     .bind(&post.updated_at)
     .bind(&post.created_at)
@@ -145,6 +150,9 @@ pub async fn get_posts(
     }
     if let Some(search) = &dto.search {
         sqlx = sqlx.bind(["%", search, "%"].concat())
+    }
+    if let Some(published) = &dto.published {
+        sqlx = sqlx.bind(published);
     }
 
     match sqlx.fetch_all(pool).await {
@@ -228,6 +236,9 @@ pub async fn edit_post_by_id(
     }
     if let Some(content) = &dto.content {
         sqlx = sqlx.bind(content);
+    }
+    if let Some(published) = &dto.published {
+        sqlx = sqlx.bind(published)
     }
     sqlx = sqlx.bind(id);
 

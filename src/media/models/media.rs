@@ -1,7 +1,6 @@
 use imagesize::ImageSize;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use uuid::Uuid;
 
 use crate::{
     app::util::time,

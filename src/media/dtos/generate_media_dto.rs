@@ -14,6 +14,8 @@ pub struct GenerateMediaDto {
     pub width: u16,
     pub height: u16,
     pub generator: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
 }
 
 impl GenerateMediaDto {
@@ -24,6 +26,7 @@ impl GenerateMediaDto {
             width: self.width,
             height: self.height,
             generator: self.generator.to_string(),
+            publish: self.publish,
         };
     }
 }
