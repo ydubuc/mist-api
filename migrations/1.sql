@@ -41,12 +41,14 @@ CREATE TABLE posts(
     content TEXT,
     media JSONB,
     generate_media_dto JSONB,
+    published BOOLEAN NOT NULL DEFAULT TRUE,
     reports_count SMALLINT NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
 );
 
 CREATE INDEX posts_user_id ON posts (user_id);
+CREATE INDEX posts_published ON posts (published);
 CREATE INDEX posts_updated_at ON posts (updated_at);
 CREATE INDEX posts_created_at ON posts (created_at);
 

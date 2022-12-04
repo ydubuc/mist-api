@@ -2,13 +2,17 @@ use axum::http::StatusCode;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::{app::models::api_error::ApiError, users::models::user::User};
+use crate::{
+    app::models::api_error::ApiError, auth::jwt::models::claims::Claims, users::models::user::User,
+};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct GetUsersFilterDto {
     #[validate(length(equal = 36, message = "id must be 36 characters."))]
     pub id: Option<String>,
     pub username: Option<String>,
+    pub displayname: Option<String>,
+    pub search: Option<String>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(max = 100, message = "limit must less than 100."))]
@@ -16,7 +20,7 @@ pub struct GetUsersFilterDto {
 }
 
 impl GetUsersFilterDto {
-    pub fn to_sql(&self) -> Result<String, ApiError> {
+    pub fn to_sql(&self, claims: &Claims) -> Result<String, ApiError> {
         let mut sql = "SELECT * FROM users".to_string();
         let mut clauses = Vec::new();
 
@@ -35,6 +39,25 @@ impl GetUsersFilterDto {
             index += 1;
             clauses.push(["username_key LIKE $", &index.to_string()].concat());
         }
+        if self.displayname.is_some() {
+            index += 1;
+            clauses.push(["displayname LIKE $", &index.to_string()].concat());
+        }
+        if self.search.is_some() {
+            index += 1;
+            clauses.push(["username_key LIKE $", &index.to_string()].concat());
+        }
+
+        // FILTER BLOCKED USERS
+        clauses.push(
+            [
+                "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.user_id = '",
+                &claims.id,
+                "' AND ",
+                "blocks.blocked_id = users.id)",
+            ]
+            .concat(),
+        );
 
         // SORT
         if let Some(sort) = &self.sort {

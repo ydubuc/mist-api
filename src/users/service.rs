@@ -90,10 +90,10 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
 
 pub async fn get_users(
     dto: &GetUsersFilterDto,
-    _claims: &Claims,
+    claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<User>, ApiError> {
-    let sql_result = dto.to_sql();
+    let sql_result = dto.to_sql(claims);
     let Ok(sql) = sql_result
     else {
         return Err(sql_result.err().unwrap());
@@ -106,6 +106,12 @@ pub async fn get_users(
     }
     if let Some(username) = &dto.username {
         sqlx = sqlx.bind(["%", &username.to_lowercase(), "%"].concat());
+    }
+    if let Some(displayname) = &dto.displayname {
+        sqlx = sqlx.bind(["%", &displayname, "%"].concat());
+    }
+    if let Some(search) = &dto.search {
+        sqlx = sqlx.bind(["%", &search.to_lowercase(), "%"].concat());
     }
 
     let sqlx_result = sqlx.fetch_all(pool).await;

@@ -21,6 +21,7 @@ pub struct EditPostDto {
         message = "content must be between 1 and 65535 characters."
     ))]
     pub content: Option<String>,
+    pub published: Option<bool>,
 }
 
 impl EditPostDto {
@@ -37,6 +38,10 @@ impl EditPostDto {
         }
         if self.content.is_some() {
             clauses.push(["content = $", &index.to_string()].concat());
+            index += 1;
+        }
+        if self.published.is_some() {
+            clauses.push(["published = $", &index.to_string()].concat());
             index += 1;
         }
 

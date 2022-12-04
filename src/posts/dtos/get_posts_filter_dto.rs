@@ -18,6 +18,7 @@ pub struct GetPostsFilterDto {
         message = "search must be between 3 and 512 characters."
     ))]
     pub search: Option<String>,
+    pub published: Option<bool>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(min = 1, max = 100, message = "limit must equal or less than 100."))]
@@ -51,6 +52,10 @@ impl GetPostsFilterDto {
         if self.search.is_some() {
             index += 1;
             clauses.push(["posts.title LIKE $", &index.to_string()].concat());
+        }
+        if self.published.is_some() {
+            index += 1;
+            clauses.push(["posts.published = $", &index.to_string()].concat());
         }
 
         // FILTER BLOCKED USERS

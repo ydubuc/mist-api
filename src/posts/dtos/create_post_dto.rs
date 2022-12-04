@@ -15,6 +15,6 @@ pub struct CreatePostDto {
         message = "content must be between 1 and 65535 characters."
     ))]
     pub content: Option<String>,
-    // #[validate(length(equal = 36, message = "media_id must be 36 characters."))]
     pub media_ids: Option<Vec<String>>,
+    pub publish: bool,
 }

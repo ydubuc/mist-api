@@ -22,6 +22,7 @@ pub struct Post {
     pub media: Option<sqlx::types::Json<Vec<PostMedia>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generate_media_dto: Option<sqlx::types::Json<GenerateMediaDto>>,
+    pub published: bool,
     pub reports_count: i16,
     pub updated_at: i64,
     pub created_at: i64,
@@ -77,6 +78,7 @@ impl Post {
             content: dto.content.to_owned(),
             media: post_media,
             generate_media_dto,
+            published: dto.publish,
             reports_count: 0,
             updated_at: current_time,
             created_at: current_time,
