@@ -72,15 +72,20 @@ pub async fn get_posts(
 pub async fn get_post_by_id(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+    // TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Post>, ApiError> {
-    match Claims::from_header(authorization, &state.envy.jwt_secret) {
-        Ok(claims) => match service::get_post_by_id(&id, &claims, &state.pool).await {
-            Ok(post) => Ok(Json(post)),
-            Err(e) => Err(e),
-        },
+    match service::get_post_by_id(&id, &state.pool).await {
+        Ok(post) => Ok(Json(post)),
         Err(e) => Err(e),
     }
+
+    // match Claims::from_header(authorization, &state.envy.jwt_secret) {
+    //     Ok(claims) => match service::get_post_by_id(&id, &claims, &state.pool).await {
+    //         Ok(post) => Ok(Json(post)),
+    //         Err(e) => Err(e),
+    //     },
+    //     Err(e) => Err(e),
+    // }
 }
 
 pub async fn edit_post_by_id(
