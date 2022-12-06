@@ -79,6 +79,7 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
 pub fn send_notifications_to_devices_with_user_id(
     title: String,
     body: String,
+    click_action: Option<String>,
     id: String,
     state: Arc<AppState>,
 ) {
@@ -105,6 +106,7 @@ pub fn send_notifications_to_devices_with_user_id(
                         messaging_token.to_string(),
                         title.to_string(),
                         body.to_string(),
+                        click_action.clone(),
                         state.envy.fcm_api_key.to_string(),
                     ));
                 }

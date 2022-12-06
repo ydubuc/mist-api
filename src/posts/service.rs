@@ -56,24 +56,7 @@ pub async fn create_post(
     save_post_as_admin(post, pool).await
 }
 
-pub async fn create_post_with_media_as_admin(
-    generate_media_dto: &GenerateMediaDto,
-    media: &Vec<Media>,
-    claims: &Claims,
-    pool: &PgPool,
-) {
-    let dto = CreatePostDto {
-        title: generate_media_dto.prompt.to_string(),
-        content: None,
-        media_ids: None,
-        publish: match generate_media_dto.publish {
-            Some(publish) => publish,
-            None => true,
-        },
-    };
-
-    let post = Post::new(claims, &dto, Some(media.to_vec()));
-
+pub async fn create_post_as_admin(post: Post, pool: &PgPool) {
     let _ = save_post_as_admin(post, pool).await;
 }
 

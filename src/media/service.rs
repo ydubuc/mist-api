@@ -20,7 +20,7 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts,
+    posts::{self, dtos::create_post_dto::CreatePostDto, models::post::Post},
     users::{self, util::ink::dtos::edit_user_ink_dto::EditUserInkDto},
     AppState,
 };
@@ -324,20 +324,27 @@ async fn on_generate_media_completion(
     }
 
     if let Some(media) = media {
+        let create_post_dto = CreatePostDto {
+            title: generate_media_request.generate_media_dto.prompt.to_string(),
+            content: None,
+            media_ids: None,
+            publish: match generate_media_request.generate_media_dto.publish {
+                Some(publish) => publish,
+                None => true,
+            },
+        };
+
+        let post = Post::new(claims, &create_post_dto, Some(media.to_vec()));
+
         devices::service::send_notifications_to_devices_with_user_id(
             "Mist".to_string(),
             "Your images are ready!".to_string(),
+            Some(format!("post_view {}", post.id)),
             claims.id.to_string(),
             state.clone(),
         );
 
-        posts::service::create_post_with_media_as_admin(
-            &generate_media_request.generate_media_dto,
-            &media,
-            &claims,
-            &state.pool,
-        )
-        .await;
+        posts::service::create_post_as_admin(post, &state.pool).await;
     }
 
     Ok(())
