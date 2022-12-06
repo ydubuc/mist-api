@@ -2,6 +2,7 @@ pub async fn send_notification(
     messaging_token: String,
     title: String,
     body: String,
+    click_action: Option<String>,
     fcm_api_key: String,
 ) -> Result<(), String> {
     let client = fcm::Client::new();
@@ -9,6 +10,9 @@ pub async fn send_notification(
     let mut builder = fcm::NotificationBuilder::new();
     builder.title(&title);
     builder.body(&body);
+    if let Some(click_action) = &click_action {
+        builder.click_action(click_action);
+    }
     builder.sound("default");
 
     let notification = builder.finalize();
