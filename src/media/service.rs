@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 use tokio::sync::RwLock;
 use tokio_retry::{strategy::FixedInterval, Retry};
 
@@ -9,9 +9,8 @@ use crate::{
     app::{
         errors::DefaultApiError,
         models::api_error::ApiError,
-        util::{
-            self,
-            multipart::{models::file_properties::FileProperties, multipart::get_files_properties},
+        util::multipart::{
+            models::file_properties::FileProperties, multipart::get_files_properties,
         },
     },
     auth::jwt::models::claims::Claims,

@@ -201,8 +201,9 @@ async fn await_request_completion(
     let mut encountered_error = false;
 
     let default_wait_time: u32 = 10;
-    let max_wait_time: u32 = 120;
+    let max_wait_time: u32 = 60;
 
+    let mut elapsed_time: u32 = 0;
     let mut wait_time: u32 = match request.wait_time > max_wait_time {
         true => max_wait_time,
         false => match request.wait_time > default_wait_time {
@@ -213,9 +214,7 @@ async fn await_request_completion(
 
     while !request.done && !request.faulted && !encountered_error {
         tracing::debug!("waiting for request {}, estimated: {}", id, wait_time);
-
         sleep(Duration::from_secs(wait_time.into())).await;
-
         tracing::debug!("checking request {} after {}", id, wait_time);
 
         let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
@@ -226,7 +225,7 @@ async fn await_request_completion(
         };
 
         request = check_response;
-
+        elapsed_time += wait_time;
         wait_time = match request.wait_time > max_wait_time {
             true => max_wait_time,
             false => match request.wait_time > default_wait_time {
@@ -234,6 +233,12 @@ async fn await_request_completion(
                 false => default_wait_time,
             },
         };
+
+        if elapsed_time > 600 {
+            tracing::error!("await_request_completion failed (ran out of time)");
+            encountered_error = true;
+            continue;
+        }
     }
 
     if request.faulted {
