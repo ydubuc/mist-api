@@ -9,7 +9,7 @@ pub struct GenerateMediaDto {
         message = "prompt must be between 1 and 1000 characters."
     ))]
     pub prompt: String,
-    #[validate(range(min = 1, max = 4, message = "number must be between 1 and 4."))]
+    #[validate(range(min = 1, max = 8, message = "number must be between 1 and 8."))]
     pub number: u8,
     pub width: u16,
     pub height: u16,
