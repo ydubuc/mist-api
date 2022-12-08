@@ -628,10 +628,12 @@ pub async fn delete_media_by_id(
     let file_name = ["media/", &claims.id, "/", &media.id].concat();
     match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
         Ok(_) => {
-            if media.source == MediaGenerator::STABLE_HORDE {
-                let dto = media.generate_media_dto.unwrap().0;
+            let dto = media.generate_media_dto;
 
-                match delete_media_and_refund_ink(&media.id, &media.user_id, &dto, pool).await {
+            if media.source == MediaGenerator::STABLE_HORDE && dto.is_some() {
+                match delete_media_and_refund_ink(&media.id, &media.user_id, &dto.unwrap().0, pool)
+                    .await
+                {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e),
                 }
@@ -685,7 +687,9 @@ async fn delete_media_and_refund_ink(
         if let Some(e) = rollback_result.err() {
             tracing::error!("delete_media_and_refund_ink_by_id failed to rollback delete_media_by_id_as_tx: {:?}", e);
         } else {
-            tracing::error!("delete_media_and_refund_ink_by_id rolled back rollback");
+            tracing::warn!(
+                "delete_media_and_refund_ink_by_id rolled back delete_media_by_id_as_tx"
+            );
         }
 
         return Err(ApiError {
@@ -720,7 +724,7 @@ async fn delete_media_and_refund_ink(
                 e
             );
         } else {
-            tracing::error!(
+            tracing::warn!(
                 "delete_media_and_refund_ink_by_id rolled back edit_user_ink_by_id_result"
             );
         }

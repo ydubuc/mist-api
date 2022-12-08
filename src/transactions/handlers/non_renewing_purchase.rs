@@ -71,7 +71,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
                 e
             );
         } else {
-            tracing::error!("handle_non_renewing_purchase rolled back edit_user_ink_by_id_result")
+            tracing::warn!("handle_non_renewing_purchase rolled back edit_user_ink_by_id_result")
         }
 
         return Err(ApiError {
@@ -92,7 +92,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
                 e
             );
         } else {
-            tracing::error!("handle_non_renewing_purchase rolled back create_transaction_result");
+            tracing::warn!("handle_non_renewing_purchase rolled back create_transaction_result");
         }
 
         return Err(ApiError {
