@@ -37,7 +37,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         "com.greenknightlabs.mist.ios.ink_large.111622" => INK_LARGE_AMOUNT,
         "com.greenknightlabs.mist.ios.ink_mega.111622" => INK_MEGA_AMOUNT,
         _ => {
-            tracing::error!("not implemented product_id: {}", event.product_id);
+            tracing::error!("product_id not implemented: {}", event.product_id);
             return Err(HandlersApiError::ProductNotImplemented.value());
         }
     };
@@ -53,6 +53,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: Some(amount),
         ink_decrease: None,
+        ink_sum_increase: Some(amount),
+        ink_sum_decrease: None,
         ink_pending_increase: None,
         ink_pending_decrease: None,
     };
@@ -64,9 +66,12 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::error!(
+                "handle_non_renewing_purchase failed to roll back edit_user_ink_by_id_result: {:?}",
+                e
+            );
         } else {
-            tracing::warn!("rolled back edit_user_ink_by_id_result")
+            tracing::warn!("handle_non_renewing_purchase rolled back edit_user_ink_by_id_result")
         }
 
         return Err(ApiError {
@@ -82,9 +87,12 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::error!(
+                "handle_non_renewing_purchase failed to roll back create_transaction_result: {:?}",
+                e
+            );
         } else {
-            tracing::warn!("rolled back create_transaction_result");
+            tracing::warn!("handle_non_renewing_purchase rolled back create_transaction_result");
         }
 
         return Err(ApiError {
@@ -96,7 +104,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     match tx.commit().await {
         Ok(_) => Ok(()),
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("handle_non_renewing_purchase failed to commit tx: {:?}", e);
             return Err(HandlersApiError::TransactionError.value());
         }
     }

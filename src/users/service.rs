@@ -80,7 +80,7 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
                     message: "User already exists.".to_string(),
                 }),
                 _ => {
-                    tracing::error!(%e);
+                    tracing::error!("create_user_as_admin: {:?}", e);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             }
@@ -119,7 +119,7 @@ pub async fn get_users(
     match sqlx_result {
         Ok(users) => Ok(users),
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("get_users: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -145,8 +145,8 @@ pub async fn get_user_by_id_as_admin(id: &str, pool: &PgPool) -> Result<User, Ap
             None => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            tracing::error!(%e);
-            Err(UsersApiError::UserNotFound.value())
+            tracing::error!("get_user_by_id_as_admin: {:?}", e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
@@ -188,8 +188,8 @@ pub async fn get_user_by_username_as_admin(
             None => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            tracing::error!(%e);
-            Err(UsersApiError::UserNotFound.value())
+            tracing::error!("get_user_by_username_as_admin: {:?}", e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
@@ -211,8 +211,8 @@ pub async fn get_user_by_email_as_admin(email: &str, pool: &PgPool) -> Result<Us
             None => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            tracing::error!(%e);
-            Err(UsersApiError::UserNotFound.value())
+            tracing::error!("get_user_by_email_as_admin: {:?}", e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
@@ -264,28 +264,8 @@ pub async fn edit_user_by_id(
             None => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
-                tracing::error!(%e);
-                return Err(DefaultApiError::InternalServerError.value());
-            };
-
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
-                tracing::error!(%e);
-                return Err(DefaultApiError::InternalServerError.value());
-            };
-
-            match code.as_str() {
-                SqlStateCodes::UNIQUE_VIOLATION => Err(ApiError {
-                    code: StatusCode::CONFLICT,
-                    message: "User already exists.".to_string(),
-                }),
-                _ => {
-                    tracing::error!(%e);
-                    Err(DefaultApiError::InternalServerError.value())
-                }
-            }
+            tracing::error!("edit_user_by_id: {:?}", e);
+            Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
@@ -315,7 +295,7 @@ pub async fn edit_user_email_pending_by_id_as_admin(
             }),
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("edit_user_email_pending_by_id_as_admin: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -345,7 +325,7 @@ pub async fn approve_user_email_pending_by_id_as_admin(
             }),
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("approve_user_email_pending_by_id_as_admin: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -381,7 +361,7 @@ pub async fn edit_user_password_by_id_as_admin(
             }),
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("edit_user_password_by_id_as_admin: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
@@ -407,7 +387,7 @@ pub async fn set_user_delete_pending_by_id_as_admin(
             false => Err(UsersApiError::UserNotFound.value()),
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("set_user_delete_pending_by_id_as_admin: {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }

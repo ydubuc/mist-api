@@ -53,6 +53,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: None,
         ink_decrease: Some(amount),
+        ink_sum_increase: None,
+        ink_sum_decrease: Some(amount),
         ink_pending_increase: None,
         ink_pending_decrease: None,
     };
@@ -64,9 +66,12 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::error!(
+                "handle_cancellation failed to rollback edit_user_ink_by_id_result: {:?}",
+                e
+            );
         } else {
-            tracing::warn!("rolled back edit_user_ink_by_id_result");
+            tracing::warn!("handle_cancellation rolled back edit_user_ink_by_id_result");
         }
 
         return Err(ApiError {
@@ -82,9 +87,12 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::error!(%e);
+            tracing::error!(
+                "handle_cancellation failed to rollback create_transaction_result: {:?}",
+                e
+            );
         } else {
-            tracing::warn!("rolled back create_transaction_result");
+            tracing::warn!("handle_cancellation rolled back create_transaction_result");
         }
 
         return Err(ApiError {
@@ -96,7 +104,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     match tx.commit().await {
         Ok(_) => Ok(()),
         Err(e) => {
-            tracing::error!(%e);
+            tracing::error!("handle_cancellation failed to commit tx: {:?}", e);
             return Err(HandlersApiError::TransactionError.value());
         }
     }

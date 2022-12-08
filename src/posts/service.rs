@@ -32,16 +32,7 @@ pub async fn create_post(
 
         for media_id in media_ids {
             match media::service::get_media_by_id(media_id, claims, pool).await {
-                Ok(m) => {
-                    if claims.id != m.user_id {
-                        return Err(ApiError {
-                            code: StatusCode::UNAUTHORIZED,
-                            message: "Permission denied.".to_string(),
-                        });
-                    }
-
-                    temp_media.push(m);
-                }
+                Ok(m) => temp_media.push(m),
                 Err(e) => return Err(e),
             }
         }

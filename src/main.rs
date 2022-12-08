@@ -74,7 +74,7 @@ async fn main() {
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
 
     let pool = PgPoolOptions::new()
-        .max_connections(49)
+        .max_connections(10)
         .min_connections(1)
         .connect(&envy.database_url)
         .await
