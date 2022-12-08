@@ -5,6 +5,8 @@ use crate::app::models::api_error::ApiError;
 pub struct EditUserInkDto {
     pub ink_increase: Option<i64>,
     pub ink_decrease: Option<i64>,
+    pub ink_sum_increase: Option<i64>,
+    pub ink_sum_decrease: Option<i64>,
     pub ink_pending_increase: Option<i64>,
     pub ink_pending_decrease: Option<i64>,
 }
@@ -19,11 +21,17 @@ impl EditUserInkDto {
         if self.ink_increase.is_some() {
             clauses.push(["ink = ink + $", &index.to_string()].concat());
             index += 1;
-            clauses.push(["ink_sum = ink_sum + $", &index.to_string()].concat());
-            index += 1;
         }
         if self.ink_decrease.is_some() {
             clauses.push(["ink = ink - $", &index.to_string()].concat());
+            index += 1;
+        }
+        if self.ink_sum_increase.is_some() {
+            clauses.push(["ink_sum = ink_sum + $", &index.to_string()].concat());
+            index += 1;
+        }
+        if self.ink_sum_decrease.is_some() {
+            clauses.push(["ink_sum = ink_sum - $", &index.to_string()].concat());
             index += 1;
         }
         if self.ink_pending_increase.is_some() {

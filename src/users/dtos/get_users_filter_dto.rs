@@ -107,7 +107,7 @@ impl GetUsersFilterDto {
                     [
                         "(",
                         &sort_field,
-                        ", id)",
+                        ", id) ",
                         direction,
                         " (",
                         &cursor_value,

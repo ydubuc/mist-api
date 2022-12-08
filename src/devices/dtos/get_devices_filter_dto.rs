@@ -83,7 +83,7 @@ impl GetDevicesFilterDto {
                     [
                         "(",
                         &sort_field,
-                        ", id)",
+                        ", id) ",
                         direction,
                         " (",
                         &cursor_value,

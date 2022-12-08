@@ -53,6 +53,8 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: None,
         ink_decrease: Some(amount),
+        ink_sum_increase: None,
+        ink_sum_decrease: Some(amount),
         ink_pending_increase: None,
         ink_pending_decrease: None,
     };

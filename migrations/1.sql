@@ -73,6 +73,7 @@ CREATE TABLE media(
 );
 
 CREATE INDEX media_user_id ON media (user_id);
+CREATE INDEX media_source ON media (source);
 CREATE INDEX media_created_at ON media (created_at);
 
 CREATE TABLE generate_media_requests(

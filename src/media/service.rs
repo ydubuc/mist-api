@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres};
 use tokio::sync::RwLock;
 use tokio_retry::{strategy::FixedInterval, Retry};
 
@@ -164,6 +164,8 @@ async fn get_generate_media_request(
     let edit_user_ink_dto = EditUserInkDto {
         ink_increase: None,
         ink_decrease: None,
+        ink_sum_increase: None,
+        ink_sum_decrease: None,
         ink_pending_increase: Some(ink_cost),
         ink_pending_decrease: None,
     };
@@ -289,6 +291,8 @@ async fn on_generate_media_completion(
             true => Some(ink_cost_actual),
             false => None,
         },
+        ink_sum_increase: None,
+        ink_sum_decrease: None,
         ink_pending_increase: None,
         ink_pending_decrease: Some(ink_cost_original),
     };
@@ -544,6 +548,9 @@ pub async fn get_media(
     if let Some(mime_type) = &dto.mime_type {
         sqlx = sqlx.bind(mime_type);
     }
+    if let Some(source) = &dto.source {
+        sqlx = sqlx.bind(source);
+    }
 
     match sqlx.fetch_all(pool).await {
         Ok(media) => Ok(media),
@@ -582,35 +589,160 @@ pub async fn delete_media_by_id(
     pool: &PgPool,
     b2: &Arc<RwLock<B2>>,
 ) -> Result<(), ApiError> {
-    match get_media_by_id(id, claims, pool).await {
-        Ok(media) => {
-            let file_name = ["media/", &claims.id, "/", &media.id].concat();
-            match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
-                Ok(_) => {
-                    let sqlx_result = sqlx::query(
-                        "
-                        DELETE FROM media WHERE id = $1 AND user_id = $2
-                        ",
-                    )
-                    .bind(id)
-                    .bind(&media.user_id)
-                    .execute(pool)
-                    .await;
+    let get_media_by_id_result = get_media_by_id(id, claims, pool).await;
+    let Ok(media) = get_media_by_id_result
+    else {
+        return Err(get_media_by_id_result.unwrap_err());
+    };
 
-                    match sqlx_result {
-                        Ok(result) => match result.rows_affected() > 0 {
-                            true => Ok(()),
-                            false => Err(MediaApiError::MediaNotFound.value()),
-                        },
-                        Err(e) => {
-                            tracing::error!(%e);
-                            Err(DefaultApiError::InternalServerError.value())
-                        }
+    if media.user_id != claims.id {
+        return Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "Permission denied.".to_string(),
+        });
+    }
+
+    let file_name = ["media/", &claims.id, "/", &media.id].concat();
+    match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
+        Ok(_) => {
+            if media.source == MediaGenerator::STABLE_HORDE {
+                let dto = media.generate_media_dto.unwrap().0;
+
+                match delete_media_and_refund_ink(&media.id, &media.user_id, &dto, pool).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(e),
+                }
+            } else {
+                let sqlx_result = sqlx::query(
+                    "
+                    DELETE FROM media WHERE id = $1 AND user_id = $2
+                    ",
+                )
+                .bind(id)
+                .bind(&media.user_id)
+                .execute(pool)
+                .await;
+
+                match sqlx_result {
+                    Ok(result) => match result.rows_affected() > 0 {
+                        true => Ok(()),
+                        false => Err(MediaApiError::MediaNotFound.value()),
+                    },
+                    Err(e) => {
+                        tracing::error!(%e);
+                        Err(DefaultApiError::InternalServerError.value())
                     }
                 }
-                Err(e) => Err(e),
             }
         }
         Err(e) => Err(e),
+    }
+}
+
+async fn delete_media_and_refund_ink(
+    media_id: &str,
+    user_id: &str,
+    dto: &GenerateMediaDto,
+    pool: &PgPool,
+) -> Result<(), ApiError> {
+    let Ok(mut tx) = pool.begin().await
+    else {
+        tracing::error!("delete_media_and_refund_ink failed to begin pool transaction");
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to begin transaction.".to_string()
+        });
+    };
+
+    let delete_media_by_id_as_tx_result = delete_media_by_id_as_tx(media_id, &mut tx).await;
+
+    if delete_media_by_id_as_tx_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!("delete_media_and_refund_ink_by_id failed to rollback delete_media_by_id_as_tx: {:?}", e);
+        } else {
+            tracing::error!("delete_media_and_refund_ink_by_id rolled back rollback");
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    let ink_refunded = users::util::ink::ink::calculate_ink_cost(dto, Some(1));
+
+    let edit_user_ink_dto = EditUserInkDto {
+        ink_increase: match ink_refunded > 0 {
+            true => Some(ink_refunded),
+            false => None,
+        },
+        ink_decrease: None,
+        ink_sum_increase: None,
+        ink_sum_decrease: None,
+        ink_pending_increase: None,
+        ink_pending_decrease: None,
+    };
+
+    let edit_user_ink_by_id_result =
+        users::util::ink::ink::edit_user_ink_by_id(user_id, &edit_user_ink_dto, &mut tx).await;
+
+    if edit_user_ink_by_id_result.is_err() {
+        let rollback_result = tx.rollback().await;
+
+        if let Some(e) = rollback_result.err() {
+            tracing::error!(
+                "delete_media_and_refund_ink_by_id failed to roll back edit_user_ink_by_id_result: {:?}",
+                e
+            );
+        } else {
+            tracing::error!(
+                "delete_media_and_refund_ink_by_id rolled back edit_user_ink_by_id_result"
+            );
+        }
+
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    if let Err(e) = tx.commit().await {
+        tracing::error!(
+            "delete_media_and_refund_ink_by_id failed to commit tx: {:?}",
+            e
+        );
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to complete transaction.".to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+async fn delete_media_by_id_as_tx(
+    id: &str,
+    tx: &mut sqlx::Transaction<'_, Postgres>,
+) -> Result<(), ApiError> {
+    let sqlx_result = sqlx::query(
+        "
+        DELETE FROM media WHERE id = $1
+        ",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await;
+
+    match sqlx_result {
+        Ok(result) => match result.rows_affected() > 0 {
+            true => Ok(()),
+            false => Err(MediaApiError::MediaNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
     }
 }

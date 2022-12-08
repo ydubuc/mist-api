@@ -45,11 +45,16 @@ pub async fn edit_user_ink_by_id(
     let mut sqlx = sqlx::query(&sql);
 
     if let Some(ink_increase) = dto.ink_increase {
-        sqlx = sqlx.bind(ink_increase); // users.ink
-        sqlx = sqlx.bind(ink_increase); // users.ink_sum
+        sqlx = sqlx.bind(ink_increase);
     }
     if let Some(ink_decrease) = dto.ink_decrease {
         sqlx = sqlx.bind(ink_decrease);
+    }
+    if let Some(ink_sum_increase) = dto.ink_sum_increase {
+        sqlx = sqlx.bind(ink_sum_increase);
+    }
+    if let Some(ink_sum_decrease) = dto.ink_sum_decrease {
+        sqlx = sqlx.bind(ink_sum_decrease);
     }
     if let Some(ink_pending_increase) = dto.ink_pending_increase {
         sqlx = sqlx.bind(ink_pending_increase);
