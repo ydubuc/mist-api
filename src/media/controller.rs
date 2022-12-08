@@ -89,13 +89,9 @@ pub async fn get_media(
 pub async fn get_media_by_id(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<Json<Media>, ApiError> {
-    match Claims::from_header(authorization, &state.envy.jwt_secret) {
-        Ok(claims) => match service::get_media_by_id(&id, &claims, &state.pool).await {
-            Ok(media) => Ok(Json(media)),
-            Err(e) => Err(e),
-        },
+    match service::get_media_by_id_as_anonymous(&id, &state.pool).await {
+        Ok(media) => Ok(Json(media)),
         Err(e) => Err(e),
     }
 }

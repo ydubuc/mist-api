@@ -561,13 +561,14 @@ pub async fn get_media(
     }
 }
 
-pub async fn get_media_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
+pub async fn get_media_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<Media, ApiError> {
     let sqlx_result = sqlx::query_as::<_, Media>(
         "
-        SELECT * FROM media WHERE id = $1
+        SELECT * FROM media WHERE id = $1 AND user_id = $2
         ",
     )
     .bind(id)
+    .bind(&claims.id)
     .fetch_optional(pool)
     .await;
 
@@ -583,13 +584,35 @@ pub async fn get_media_by_id(id: &str, _claims: &Claims, pool: &PgPool) -> Resul
     }
 }
 
+pub async fn get_media_by_id_as_anonymous(id: &str, pool: &PgPool) -> Result<Media, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, Media>(
+        "
+        SELECT * FROM media WHERE id = $1
+        ",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(media) => match media {
+            Some(media) => Ok(media),
+            None => Err(MediaApiError::MediaNotFound.value()),
+        },
+        Err(e) => {
+            tracing::error!("get_media_by_id: {:?}", e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
 pub async fn delete_media_by_id(
     id: &str,
     claims: &Claims,
     pool: &PgPool,
     b2: &Arc<RwLock<B2>>,
 ) -> Result<(), ApiError> {
-    let get_media_by_id_result = get_media_by_id(id, claims, pool).await;
+    let get_media_by_id_result = get_media_by_id_as_anonymous(id, pool).await;
     let Ok(media) = get_media_by_id_result
     else {
         return Err(get_media_by_id_result.unwrap_err());
