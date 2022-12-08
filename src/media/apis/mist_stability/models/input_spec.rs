@@ -7,4 +7,5 @@ pub struct InputSpec {
     pub height: u16,
     pub number: u8,
     pub steps: Option<u8>,
+    pub engine: Option<String>,
 }

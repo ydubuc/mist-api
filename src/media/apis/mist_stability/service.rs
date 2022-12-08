@@ -215,6 +215,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         height: dto.height,
         number: dto.number,
         steps: Some(50),
+        engine: Some("stable-diffusion-512-v2-1".to_string()),
     }
 }
 
