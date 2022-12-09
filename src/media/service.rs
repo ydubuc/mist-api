@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, mist_stability, stable_horde},
+    apis::{dalle, labml, mist_stability, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
@@ -36,11 +36,12 @@ use super::{
     },
 };
 
-const SUPPORTED_GENERATORS: [&str; 3] = [
+const SUPPORTED_GENERATORS: [&str; 4] = [
     MediaGenerator::DALLE,
     // MediaGenerator::DREAM,
     MediaGenerator::STABLE_HORDE,
     MediaGenerator::MIST_STABILITY,
+    MediaGenerator::LABML,
 ];
 
 pub async fn generate_media(
@@ -79,6 +80,7 @@ pub async fn generate_media(
         MediaGenerator::MIST_STABILITY => {
             mist_stability::service::spawn_generate_media_task(req, claims, state)
         }
+        MediaGenerator::LABML => labml::service::spawn_generate_media_task(req, claims, state),
         // this should not happen because it should be validated above
         _ => {
             return Err(ApiError {
@@ -101,6 +103,7 @@ fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
         MediaGenerator::MIST_STABILITY => {
             mist_stability::service::is_valid_size(&dto.width, &dto.height)
         }
+        MediaGenerator::LABML => labml::service::is_valid_size(&dto.width, &dto.height),
         _ => false,
     };
 

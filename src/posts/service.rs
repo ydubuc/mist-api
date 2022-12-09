@@ -8,7 +8,7 @@ use crate::{
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
     auth::jwt::{enums::roles::Roles, models::claims::Claims},
-    media::{self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media},
+    media::{self, models::media::Media},
 };
 
 use super::{
@@ -205,12 +205,12 @@ pub async fn edit_post_by_id(
 
     let mut sqlx = sqlx::query_as::<_, Post>(&sql);
 
-    if let Some(title) = &dto.title {
-        sqlx = sqlx.bind(title);
-    }
-    if let Some(content) = &dto.content {
-        sqlx = sqlx.bind(content);
-    }
+    // if let Some(title) = &dto.title {
+    //     sqlx = sqlx.bind(title);
+    // }
+    // if let Some(content) = &dto.content {
+    //     sqlx = sqlx.bind(content);
+    // }
     if let Some(published) = &dto.published {
         sqlx = sqlx.bind(published)
     }

@@ -122,7 +122,7 @@ async fn upload_image_and_create_media(
         id: uuid.to_string(),
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
-        mime_type: "image/webp".to_string(),
+        mime_type: mime::IMAGE_PNG.to_string(),
         data: Bytes::from(bytes),
     };
 

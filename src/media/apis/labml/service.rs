@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use bytes::Bytes;
 use reqwest::{header, StatusCode};
 use tokio::time::sleep;
 use tokio_retry::{strategy::FixedInterval, Retry};
@@ -8,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     app::{
-        errors::DefaultApiError, models::api_error::ApiError,
+        self, errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
     auth::jwt::models::claims::Claims,
@@ -24,10 +23,10 @@ use crate::{
 
 use super::{
     config::API_URL,
-    models::input_spec::{InputSpec, InputSpecParams},
+    models::input_spec::InputSpec,
     structs::{
-        stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
-        stable_horde_get_request_response::{StableHordeGeneration, StableHordeGetRequestResponse},
+        labml_generate_response::LabmlGenerateResponse,
+        labml_get_request_response::{LabmlGetRequestResponse, LabmlImage},
     },
 };
 
@@ -67,39 +66,29 @@ async fn generate_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
-    let stable_horde_api_key = &state.envy.stable_horde_api_key;
+    let labml_api_key = &state.envy.labml_api_key;
 
-    let stable_horde_request_response_result =
-        await_request_completion(dto, stable_horde_api_key).await;
-    let Ok(stable_horde_request_response) = stable_horde_request_response_result
+    let response_result = await_request_completion(dto, labml_api_key).await;
+    let Ok(response) = response_result
     else {
-        return Err(stable_horde_request_response_result.unwrap_err());
+        return Err(response_result.unwrap_err());
     };
 
-    let Some(generations) = stable_horde_request_response.generations
-    else {
+    if response.images.len() < 1 {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Stable Horde generated no images.".to_string()
+            message: "LabML generated no images.".to_string(),
         });
-    };
+    }
 
-    tracing::debug!(
-        "request processed worker: {}, id: {}",
-        generations.first().unwrap().worker_name,
-        generations.first().unwrap().worker_id
-    );
+    let mut futures = Vec::with_capacity(response.images.len());
 
-    let mut futures = Vec::with_capacity(generations.len());
-
-    for generation in &generations {
-        futures.push(upload_image_and_create_media(
-            dto, generation, claims, state,
-        ));
+    for image in &response.images {
+        futures.push(upload_image_and_create_media(dto, image, claims, state));
     }
 
     let results = futures::future::join_all(futures).await;
-    let mut media = Vec::with_capacity(generations.len());
+    let mut media = Vec::with_capacity(response.images.len());
 
     for result in results {
         if result.is_ok() {
@@ -125,16 +114,13 @@ async fn generate_media(
 
 async fn upload_image_and_create_media(
     dto: &GenerateMediaDto,
-    stable_horde_generation: &StableHordeGeneration,
+    labml_image: &LabmlImage,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&stable_horde_generation.img)
+    let Ok(bytes) = app::util::reqwest::get_bytes(&labml_image.image).await
     else {
-        return Err(ApiError {
-            code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
-        });
+        return Err(ApiError { code: StatusCode::INTERNAL_SERVER_ERROR, message: "Failed to get bytes".to_string() })
     };
 
     let uuid = Uuid::new_v4().to_string();
@@ -142,8 +128,8 @@ async fn upload_image_and_create_media(
         id: uuid.to_string(),
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
-        mime_type: "image/webp".to_string(),
-        data: Bytes::from(bytes),
+        mime_type: mime::IMAGE_JPEG.to_string(),
+        data: bytes,
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
@@ -155,7 +141,7 @@ async fn upload_image_and_create_media(
             Ok(Media::from_dto(
                 &file_properties.id,
                 dto,
-                Some(&stable_horde_generation.seed),
+                None,
                 &response,
                 claims,
                 b2_download_url,
@@ -170,54 +156,55 @@ async fn upload_image_and_create_media(
 
 async fn await_request_completion(
     dto: &GenerateMediaDto,
-    stable_horde_api_key: &str,
-) -> Result<StableHordeGetRequestResponse, ApiError> {
-    let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key).await;
-    let Ok(generate_async_response) = generate_async_result
+    labml_api_key: &str,
+) -> Result<LabmlGetRequestResponse, ApiError> {
+    let generate_response_result = generate_with_retry(dto, labml_api_key).await;
+    let Ok(generate_response) = generate_response_result
     else {
-        tracing::error!("await_request_completion failed generate_async_with_retry");
-        return Err(generate_async_result.unwrap_err());
+        tracing::error!("await_request_completion failed generate_with_retry");
+        return Err(generate_response_result.unwrap_err());
     };
 
-    let id = generate_async_response.id;
+    let id = generate_response.job_id;
+    let eta: u32 = match generate_response.eta > 0.0 {
+        true => generate_response.eta as u32,
+        false => 3,
+    };
 
-    sleep(Duration::from_millis(5000)).await;
+    sleep(Duration::from_millis((1000 * eta).into())).await;
 
-    let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
+    let Ok(initial_check_response) = get_request_by_id_with_retry(&id).await
     else {
         tracing::error!("await_request_completion failed get_request_by_id_with_retry (initial check)");
         return Err(DefaultApiError::InternalServerError.value());
     };
 
-    if !initial_check_response.is_possible {
-        tracing::error!(
-            "await_request_completion failed (request is not possible): {:?}",
-            dto
-        );
-        return Err(DefaultApiError::InternalServerError.value());
-    }
-
     let mut request = initial_check_response;
     let mut encountered_error = false;
 
-    let default_wait_time: u32 = 10;
+    let default_wait_time: u32 = 3;
     let max_wait_time: u32 = 60;
 
+    let eta: u32 = match request.eta > 0.0 {
+        true => request.eta as u32,
+        false => default_wait_time,
+    };
+
     let mut elapsed_time: u32 = 0;
-    let mut wait_time: u32 = match request.wait_time > max_wait_time {
+    let mut wait_time: u32 = match eta > max_wait_time {
         true => max_wait_time,
-        false => match request.wait_time > default_wait_time {
-            true => request.wait_time,
+        false => match eta > default_wait_time {
+            true => eta,
             false => default_wait_time,
         },
     };
 
-    while !request.done && !request.faulted && !encountered_error {
+    while !request.is_completed && !encountered_error {
         tracing::debug!("waiting for request {}, estimated: {}", id, wait_time);
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", id, wait_time);
 
-        let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
+        let Ok(check_response) = get_request_by_id_with_retry(&id).await
         else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
@@ -226,10 +213,16 @@ async fn await_request_completion(
 
         request = check_response;
         elapsed_time += wait_time;
-        wait_time = match request.wait_time > max_wait_time {
+
+        let eta: u32 = match request.eta > 0.0 {
+            true => request.eta as u32,
+            false => default_wait_time,
+        };
+
+        wait_time = match eta > max_wait_time {
             true => max_wait_time,
-            false => match request.wait_time > default_wait_time {
-                true => request.wait_time,
+            false => match eta > default_wait_time {
+                true => eta,
                 false => default_wait_time,
             },
         };
@@ -241,10 +234,6 @@ async fn await_request_completion(
         }
     }
 
-    if request.faulted {
-        tracing::error!("await_request_completion failed (faulted): {:?}", request);
-        return Err(DefaultApiError::InternalServerError.value());
-    }
     if encountered_error {
         tracing::error!(
             "await_request_completion failed (encountered error): {:?}",
@@ -253,39 +242,41 @@ async fn await_request_completion(
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key).await
-    else {
-        tracing::error!("await_request_completion failed get_request_by_id_with_retry (full)");
-        return Err(DefaultApiError::InternalServerError.value());
-    };
-
-    Ok(get_response)
+    Ok(request)
 }
 
-async fn generate_async_with_retry(
+async fn generate_with_retry(
     dto: &GenerateMediaDto,
-    stable_horde_api_key: &str,
-) -> Result<StableHordeGenerateAsyncResponse, ApiError> {
+    labml_api_key: &str,
+) -> Result<LabmlGenerateResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        generate_async(dto, stable_horde_api_key).await
+        match generate(dto, labml_api_key).await {
+            Ok(response) => match response.is_success {
+                true => Ok(response),
+                false => Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "generate_with_retry failed (not is_success)".to_string(),
+                }),
+            },
+            Err(e) => Err(e),
+        }
     })
     .await
 }
 
-async fn generate_async(
+async fn generate(
     dto: &GenerateMediaDto,
-    stable_horde_api_key: &str,
-) -> Result<StableHordeGenerateAsyncResponse, ApiError> {
-    let input_spec = provide_input_spec(dto);
+    labml_api_key: &str,
+) -> Result<LabmlGenerateResponse, ApiError> {
+    let input_spec = provide_input_spec(dto, labml_api_key);
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
-    headers.insert("apiKey", stable_horde_api_key.parse().unwrap());
 
     let client = reqwest::Client::new();
-    let url = format!("{}/generate/async", API_URL);
+    let url = format!("{}/generate", API_URL);
     let result = client
         .post(url)
         .headers(headers)
@@ -296,61 +287,54 @@ async fn generate_async(
     match result {
         Ok(res) => match res.text().await {
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(stable_horde_generate_async_response) => {
-                    Ok(stable_horde_generate_async_response)
-                }
+                Ok(labml_generate_response) => Ok(labml_generate_response),
                 Err(_) => {
-                    tracing::warn!("generate_async (1): {:?}", text);
+                    tracing::warn!("generate (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             },
             Err(e) => {
-                tracing::warn!("generate_async (2): {:?}", e);
+                tracing::warn!("generate (2): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::warn!("generate_async (3): {:?}", e);
+            tracing::warn!("generate (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
 
-async fn get_request_by_id_with_retry(
-    id: &str,
-    check_only: bool,
-    stable_horde_api_key: &str,
-) -> Result<StableHordeGetRequestResponse, ApiError> {
-    let retry_strategy = FixedInterval::from_millis(match check_only {
-        true => 10000,
-        false => 31000,
-    })
-    .take(3);
+async fn get_request_by_id_with_retry(id: &str) -> Result<LabmlGetRequestResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        get_request_by_id(&id, check_only, stable_horde_api_key).await
+        match get_request_by_id(&id).await {
+            Ok(response) => match response.is_success {
+                true => Ok(response),
+                false => Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "get_request_by_id_with_retry failed (not is_success)".to_string(),
+                }),
+            },
+            Err(e) => Err(e),
+        }
     })
     .await
 }
 
-async fn get_request_by_id(
-    id: &str,
-    check_only: bool,
-    stable_horde_api_key: &str,
-) -> Result<StableHordeGetRequestResponse, ApiError> {
+async fn get_request_by_id(id: &str) -> Result<LabmlGetRequestResponse, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
-    headers.insert("apikey", stable_horde_api_key.parse().unwrap());
 
     let client = reqwest::Client::new();
-    let check_param = if check_only { "check" } else { "status" };
-    let url = format!("{}/generate/{}/{}", API_URL, check_param, id);
+    let url = format!("{}/status/{}", API_URL, id);
     let result = client.get(url).headers(headers).send().await;
 
     match result {
         Ok(res) => match res.text().await {
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(stable_horde_get_request_response) => Ok(stable_horde_get_request_response),
+                Ok(labml_get_request_response) => Ok(labml_get_request_response),
                 Err(_) => {
                     tracing::warn!("get_request_by_id (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
@@ -368,42 +352,29 @@ async fn get_request_by_id(
     }
 }
 
-fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
+fn provide_input_spec(dto: &GenerateMediaDto, labml_api_key: &str) -> InputSpec {
     InputSpec {
+        api_token: labml_api_key.to_string(),
         prompt: dto.prompt.to_string(),
-        params: Some(InputSpecParams {
-            sample_namer: None,
-            cfg_scale: None,
-            denoising_strength: None,
-            seed: None,
-            height: Some(dto.height),
-            width: Some(dto.width),
-            seed_variation: None,
-            post_processing: Some(vec!["GFPGAN".to_string()]),
-            karras: None,
-            steps: Some(50),
-            n: Some(dto.number),
-        }),
-        nsfw: Some(false),
-        trusted_workers: Some(true),
-        censor_nsfw: Some(false),
-        workers: None,
-        // workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
-        models: Some(vec!["stable_diffusion".to_string()]),
-        source_image: None,
-        source_processing: None,
-        source_mask: None,
+        negative_prompt: None,
+        n_steps: Some(50),
+        sampling_method: None,
+        prompt_strength: None,
+        seeds: None,
+        source: None,
+        mask: None,
+        image_strength: None,
     }
 }
 
 pub fn is_valid_size(width: &u16, height: &u16) -> bool {
-    let valid_widths: [u16; 3] = [512, 768, 1024];
+    let valid_widths: [u16; 1] = [512];
 
     if !valid_widths.contains(width) {
         return false;
     }
 
-    let valid_heights: [u16; 3] = [512, 768, 1024];
+    let valid_heights: [u16; 1] = [512];
 
     if !valid_heights.contains(height) {
         return false;
