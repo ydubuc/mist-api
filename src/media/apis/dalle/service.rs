@@ -39,7 +39,7 @@ pub fn spawn_generate_media_task(
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request.generate_media_dto, &claims, &state).await {
+        match generate_media(&generate_media_request, &claims, &state).await {
             Ok(m) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
@@ -62,11 +62,14 @@ pub fn spawn_generate_media_task(
 }
 
 async fn generate_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
-    let dalle_generate_images_result = dalle_generate_images(dto, &state.envy.openai_api_key).await;
+    let openai_api_key = &state.envy.openai_api_key;
+    let dto = &request.generate_media_dto;
+
+    let dalle_generate_images_result = dalle_generate_images(dto, openai_api_key).await;
     let Ok(dalle_response) = dalle_generate_images_result
     else {
         return Err(dalle_generate_images_result.unwrap_err());
@@ -75,7 +78,7 @@ async fn generate_media(
     let mut futures = Vec::with_capacity(dalle_response.data.len());
 
     for data in &dalle_response.data {
-        futures.push(upload_image_and_create_media(dto, data, claims, state));
+        futures.push(upload_image_and_create_media(request, data, claims, state));
     }
 
     let results = futures::future::join_all(futures).await;
@@ -104,7 +107,7 @@ async fn generate_media(
 }
 
 async fn upload_image_and_create_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     dalle_data_base_64_json: &DalleDataBase64Json,
     claims: &Claims,
     state: &Arc<AppState>,
@@ -122,7 +125,7 @@ async fn upload_image_and_create_media(
         id: uuid.to_string(),
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
-        mime_type: "image/webp".to_string(),
+        mime_type: mime::IMAGE_PNG.to_string(),
         data: Bytes::from(bytes),
     };
 
@@ -132,9 +135,9 @@ async fn upload_image_and_create_media(
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
-            Ok(Media::from_dto(
+            Ok(Media::from_request(
                 &file_properties.id,
-                dto,
+                request,
                 None,
                 &response,
                 claims,
@@ -228,4 +231,8 @@ pub fn is_valid_size(width: &u16, height: &u16) -> bool {
     }
 
     return true;
+}
+
+pub fn is_valid_number(number: u8) -> bool {
+    return (number > 0) && (number < 9);
 }

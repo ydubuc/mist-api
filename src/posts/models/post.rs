@@ -40,6 +40,39 @@ pub struct Post {
 }
 
 impl Post {
+    pub fn from_media(media: Vec<Media>) -> Option<Self> {
+        let Some(first_media) = media.first().cloned()
+        else { return None; };
+        let Some(post_id) = first_media.post_id
+        else { return None; };
+        let Some(generate_media_dto) = &first_media.generate_media_dto
+        else { return None; };
+
+        let current_time = time::current_time_in_secs() as i64;
+
+        let mut post_media = Vec::new();
+        for m in media {
+            post_media.push(PostMedia::from_media(m));
+        }
+
+        return Some(Self {
+            id: post_id.to_string(),
+            user_id: first_media.user_id,
+            title: generate_media_dto.prompt.to_string(),
+            content: None,
+            media: Some(sqlx::types::Json(post_media)),
+            generate_media_dto: Some(generate_media_dto.clone()),
+            published: generate_media_dto.publish.unwrap_or(true),
+            reports_count: 0,
+            updated_at: current_time,
+            created_at: current_time,
+
+            user_username: None,
+            user_displayname: None,
+            user_avatar_url: None,
+        });
+    }
+
     pub fn new(claims: &Claims, dto: &CreatePostDto, media: Option<Vec<Media>>) -> Self {
         let current_time = time::current_time_in_secs() as i64;
 

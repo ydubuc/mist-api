@@ -14,6 +14,7 @@ pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) 
         MediaGenerator::DREAM => 30.0,
         MediaGenerator::MIST_STABILITY => 30.0,
         MediaGenerator::STABLE_HORDE => 10.0,
+        MediaGenerator::LABML => 5.0,
         _ => 40.0,
     };
 

@@ -141,7 +141,7 @@ async fn main() {
         // .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
-        // .route("/posts/:id", patch(posts::controller::edit_post_by_id))
+        .route("/posts/:id", patch(posts::controller::edit_post_by_id))
         .route(
             "/posts/:id/report",
             post(posts::controller::report_post_by_id),

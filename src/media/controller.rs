@@ -103,7 +103,7 @@ pub async fn delete_media_by_id(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
 ) -> Result<(), ApiError> {
     match Claims::from_header(authorization, &state.envy.jwt_secret) {
-        Ok(claims) => service::delete_media_by_id(&id, &claims, &state.pool, &state.b2).await,
+        Ok(claims) => service::delete_media_by_id(&id, &claims, &state).await,
         Err(e) => Err(e),
     }
 }

@@ -19,13 +19,13 @@ use crate::{
         self, enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    posts::{self, dtos::create_post_dto::CreatePostDto, models::post::Post},
+    posts::{self, models::post::Post},
     users::{self, util::ink::dtos::edit_user_ink_dto::EditUserInkDto},
     AppState,
 };
 
 use super::{
-    apis::{dalle, mist_stability, stable_horde},
+    apis::{dalle, labml, mist_stability, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
@@ -36,11 +36,11 @@ use super::{
     },
 };
 
-const SUPPORTED_GENERATORS: [&str; 3] = [
+const SUPPORTED_GENERATORS: [&str; 4] = [
     MediaGenerator::DALLE,
-    // MediaGenerator::DREAM,
     MediaGenerator::STABLE_HORDE,
     MediaGenerator::MIST_STABILITY,
+    MediaGenerator::LABML,
 ];
 
 pub async fn generate_media(
@@ -48,16 +48,14 @@ pub async fn generate_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<GenerateMediaRequest, ApiError> {
-    if !SUPPORTED_GENERATORS.contains(&dto.generator.as_ref()) {
-        return Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "Media generator not supported.".to_string(),
-        });
+    if let Err(e) = is_valid_generator(dto) {
+        return Err(e);
     }
-
-    match is_valid_size(dto) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
+    if let Err(e) = is_valid_size(dto) {
+        return Err(e);
+    }
+    if let Err(e) = is_valid_number(dto) {
+        return Err(e);
     }
 
     let get_generate_media_request_result = get_generate_media_request(dto, claims, state).await;
@@ -72,13 +70,13 @@ pub async fn generate_media(
 
     match dto.generator.as_ref() {
         MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
-        // MediaGenerator::DREAM => dream::service::spawn_generate_media_task(req, claims, state),
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::spawn_generate_media_task(req, claims, state)
         }
         MediaGenerator::MIST_STABILITY => {
             mist_stability::service::spawn_generate_media_task(req, claims, state)
         }
+        MediaGenerator::LABML => labml::service::spawn_generate_media_task(req, claims, state),
         // this should not happen because it should be validated above
         _ => {
             return Err(ApiError {
@@ -94,13 +92,13 @@ pub async fn generate_media(
 fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
     let is_valid = match dto.generator.as_ref() {
         MediaGenerator::DALLE => dalle::service::is_valid_size(&dto.width, &dto.height),
-        // MediaGenerator::DREAM => dream::service::is_valid_size(&dto.width, &dto.height),
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::is_valid_size(&dto.width, &dto.height)
         }
         MediaGenerator::MIST_STABILITY => {
             mist_stability::service::is_valid_size(&dto.width, &dto.height)
         }
+        MediaGenerator::LABML => labml::service::is_valid_size(&dto.width, &dto.height),
         _ => false,
     };
 
@@ -109,6 +107,36 @@ fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
         false => Err(ApiError {
             code: StatusCode::BAD_REQUEST,
             message: "This size format is currently not supported.".to_string(),
+        }),
+    }
+}
+
+fn is_valid_generator(dto: &GenerateMediaDto) -> Result<(), ApiError> {
+    let is_valid = SUPPORTED_GENERATORS.contains(&dto.generator.as_ref());
+
+    match is_valid {
+        true => Ok(()),
+        false => Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "Media generator not supported.".to_string(),
+        }),
+    }
+}
+
+fn is_valid_number(dto: &GenerateMediaDto) -> Result<(), ApiError> {
+    let is_valid = match dto.generator.as_ref() {
+        MediaGenerator::DALLE => dalle::service::is_valid_number(dto.number),
+        MediaGenerator::STABLE_HORDE => stable_horde::service::is_valid_number(dto.number),
+        MediaGenerator::MIST_STABILITY => mist_stability::service::is_valid_number(dto.number),
+        MediaGenerator::LABML => labml::service::is_valid_number(dto.number),
+        _ => false,
+    };
+
+    match is_valid {
+        true => Ok(()),
+        false => Err(ApiError {
+            code: StatusCode::BAD_REQUEST,
+            message: "This number is currently not supported.".to_string(),
         }),
     }
 }
@@ -327,27 +355,17 @@ async fn on_generate_media_completion(
     }
 
     if let Some(media) = media {
-        let create_post_dto = CreatePostDto {
-            title: generate_media_request.generate_media_dto.prompt.to_string(),
-            content: None,
-            media_ids: None,
-            publish: match generate_media_request.generate_media_dto.publish {
-                Some(publish) => publish,
-                None => true,
-            },
-        };
+        if let Some(post) = Post::from_media(media.clone()) {
+            devices::service::send_notifications_to_devices_with_user_id(
+                "Mist".to_string(),
+                "Your images are ready!".to_string(),
+                Some(format!("post_view {}", post.id)),
+                claims.id.to_string(),
+                state.clone(),
+            );
 
-        let post = Post::new(claims, &create_post_dto, Some(media.to_vec()));
-
-        devices::service::send_notifications_to_devices_with_user_id(
-            "Mist".to_string(),
-            "Your images are ready!".to_string(),
-            Some(format!("post_view {}", post.id)),
-            claims.id.to_string(),
-            state.clone(),
-        );
-
-        posts::service::create_post_as_admin(post, &state.pool).await;
+            posts::service::create_post_as_admin(post, &state.pool).await;
+        }
     }
 
     Ok(())
@@ -468,11 +486,17 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
     // due to the genius who made this (that's me...)
     // you need to update the num_properties to match the number of
     // properties inserted into the database
-    let num_properties: u8 = 11;
+
+    // EXPLANATION
+    // because we can upload multiple media at once
+    // we need to insert num_properties * media.len()
+    // therefore we loop to map each binding to a VALUE number
+
+    let num_properties: u8 = 12;
 
     let mut sql = "
     INSERT INTO media (
-        id, user_id, file_id, url,
+        id, user_id, file_id, post_id, url,
         width, height, mime_type,
         generate_media_dto, seed, source, created_at
     ) "
@@ -504,6 +528,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
         sqlx = sqlx.bind(&m.id);
         sqlx = sqlx.bind(&m.user_id);
         sqlx = sqlx.bind(&m.file_id);
+        sqlx = sqlx.bind(&m.post_id);
         sqlx = sqlx.bind(&m.url);
         sqlx = sqlx.bind(m.width.to_owned() as i16);
         sqlx = sqlx.bind(m.height.to_owned() as i16);
@@ -609,10 +634,9 @@ pub async fn get_media_by_id_as_anonymous(id: &str, pool: &PgPool) -> Result<Med
 pub async fn delete_media_by_id(
     id: &str,
     claims: &Claims,
-    pool: &PgPool,
-    b2: &Arc<RwLock<B2>>,
+    state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
-    let get_media_by_id_result = get_media_by_id_as_anonymous(id, pool).await;
+    let get_media_by_id_result = get_media_by_id_as_anonymous(id, &state.pool).await;
     let Ok(media) = get_media_by_id_result
     else {
         return Err(get_media_by_id_result.unwrap_err());
@@ -626,15 +650,28 @@ pub async fn delete_media_by_id(
     }
 
     let file_name = ["media/", &claims.id, "/", &media.id].concat();
-    match backblaze::service::delete_file(&file_name, &media.file_id, b2).await {
+    match backblaze::service::delete_file(&file_name, &media.file_id, &state.b2).await {
         Ok(_) => {
             let dto = media.generate_media_dto;
 
             if media.source == MediaGenerator::STABLE_HORDE && dto.is_some() {
-                match delete_media_and_refund_ink(&media.id, &media.user_id, &dto.unwrap().0, pool)
-                    .await
+                match delete_media_and_refund_ink(
+                    &media.id,
+                    &media.user_id,
+                    &dto.unwrap().0,
+                    &state.pool,
+                )
+                .await
                 {
-                    Ok(_) => Ok(()),
+                    Ok(_) => {
+                        if let Some(post_id) = media.post_id {
+                            let media_id = media.id.to_string();
+                            let state = state.clone();
+                            posts::service::spawn_on_delete_post_media(post_id, media_id, state);
+                        }
+
+                        Ok(())
+                    }
                     Err(e) => Err(e),
                 }
             } else {
@@ -645,12 +682,22 @@ pub async fn delete_media_by_id(
                 )
                 .bind(id)
                 .bind(&media.user_id)
-                .execute(pool)
+                .execute(&state.pool)
                 .await;
 
                 match sqlx_result {
                     Ok(result) => match result.rows_affected() > 0 {
-                        true => Ok(()),
+                        true => {
+                            if let Some(post_id) = media.post_id {
+                                let media_id = media.id.to_string();
+                                let state = state.clone();
+                                posts::service::spawn_on_delete_post_media(
+                                    post_id, media_id, state,
+                                );
+                            }
+
+                            Ok(())
+                        }
                         false => Err(MediaApiError::MediaNotFound.value()),
                     },
                     Err(e) => {

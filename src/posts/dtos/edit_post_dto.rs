@@ -9,18 +9,18 @@ use crate::{
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct EditPostDto {
-    #[validate(length(
-        min = 1,
-        max = 512,
-        message = "title must be between 1 and 512 characters."
-    ))]
-    pub title: Option<String>,
-    #[validate(length(
-        min = 1,
-        max = 65535,
-        message = "content must be between 1 and 65535 characters."
-    ))]
-    pub content: Option<String>,
+    // #[validate(length(
+    //     min = 1,
+    //     max = 512,
+    //     message = "title must be between 1 and 512 characters."
+    // ))]
+    // pub title: Option<String>,
+    // #[validate(length(
+    //     min = 1,
+    //     max = 65535,
+    //     message = "content must be between 1 and 65535 characters."
+    // ))]
+    // pub content: Option<String>,
     pub published: Option<bool>,
 }
 
@@ -32,14 +32,14 @@ impl EditPostDto {
         let mut index: u8 = 1;
 
         // SET CLAUSES
-        if self.title.is_some() {
-            clauses.push(["title = $", &index.to_string()].concat());
-            index += 1;
-        }
-        if self.content.is_some() {
-            clauses.push(["content = $", &index.to_string()].concat());
-            index += 1;
-        }
+        // if self.title.is_some() {
+        //     clauses.push(["title = $", &index.to_string()].concat());
+        //     index += 1;
+        // }
+        // if self.content.is_some() {
+        //     clauses.push(["content = $", &index.to_string()].concat());
+        //     index += 1;
+        // }
         if self.published.is_some() {
             clauses.push(["published = $", &index.to_string()].concat());
             index += 1;
