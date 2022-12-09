@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
@@ -9,6 +11,7 @@ use crate::{
     },
     auth::jwt::{enums::roles::Roles, models::claims::Claims},
     media::{self, models::media::Media},
+    AppState,
 };
 
 use super::{
@@ -226,6 +229,53 @@ pub async fn edit_post_by_id(
             Err(DefaultApiError::InternalServerError.value())
         }
     }
+}
+
+pub fn spawn_on_delete_post_media(post_id: String, media_id: String, state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let Ok(post) = get_post_by_id_as_admin(&post_id, &state.pool).await
+        else { return; };
+
+        let Some(media) = post.media
+        else { return; };
+
+        if media.0.len() < 1 {
+            return;
+        }
+
+        let mut updated_media = Vec::new();
+
+        for m in media.0 {
+            if m.id != media_id {
+                updated_media.push(m);
+            }
+        }
+
+        let should_delete = updated_media.len() == 0;
+
+        if should_delete {
+            let sql = "DELETE FROM posts where id = $1";
+
+            let sqlx_result = sqlx::query(&sql).bind(&post_id).execute(&state.pool).await;
+
+            if let Err(e) = sqlx_result {
+                tracing::error!("spawn_on_delete_post_media failed to delete post: {:?}", e);
+            }
+        } else {
+            let media_value = Some(sqlx::types::Json(updated_media));
+            let sql = "UPDATE posts SET media = $1 WHERE id = $2";
+
+            let sqlx_result = sqlx::query(&sql)
+                .bind(&media_value)
+                .bind(&post_id)
+                .execute(&state.pool)
+                .await;
+
+            if let Err(e) = sqlx_result {
+                tracing::error!("spawn_on_delete_post_media failed to update media: {:?}", e);
+            }
+        }
+    });
 }
 
 pub async fn report_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiError> {

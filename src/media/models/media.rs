@@ -5,6 +5,7 @@ use sqlx::FromRow;
 use crate::{
     app::util::time,
     auth::jwt::models::claims::Claims,
+    generate_media_requests::models::generate_media_request::GenerateMediaRequest,
     media::{
         dtos::generate_media_dto::GenerateMediaDto, enums::media_source::MediaSource,
         util::backblaze::structs::backblaze_upload_file_response::BackblazeUploadFileResponse,
@@ -18,6 +19,8 @@ pub struct Media {
     pub id: String,
     pub user_id: String,
     pub file_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_id: Option<String>,
     pub url: String,
     pub width: i16,
     pub height: i16,
@@ -31,14 +34,15 @@ pub struct Media {
 }
 
 impl Media {
-    pub fn from_dto(
+    pub fn from_request(
         id: &str,
-        dto: &GenerateMediaDto,
+        request: &GenerateMediaRequest,
         seed: Option<&str>,
         b2_upload_responses: &BackblazeUploadFileResponse,
         claims: &Claims,
         b2_download_url: &str,
     ) -> Media {
+        let dto = &request.generate_media_dto.0;
         let download_url = [
             b2_download_url,
             "/b2api/v1/b2_download_file_by_id?fileId=",
@@ -50,6 +54,7 @@ impl Media {
             id: id.to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
+            post_id: Some(request.id.to_string()),
             url: download_url,
             width: dto.width as i16,
             height: dto.height as i16,
@@ -82,6 +87,7 @@ impl Media {
             id: id.to_string(),
             user_id: claims.id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
+            post_id: None,
             url: download_url,
             width: image_size.width.to_owned() as i16,
             height: image_size.height.to_owned() as i16,

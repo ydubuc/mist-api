@@ -40,7 +40,7 @@ pub fn spawn_generate_media_task(
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request.generate_media_dto, &claims, &state).await {
+        match generate_media(&generate_media_request, &claims, &state).await {
             Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
@@ -63,11 +63,12 @@ pub fn spawn_generate_media_task(
 }
 
 async fn generate_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let stable_horde_api_key = &state.envy.stable_horde_api_key;
+    let dto = &request.generate_media_dto;
 
     let stable_horde_request_response_result =
         await_request_completion(dto, stable_horde_api_key).await;
@@ -94,7 +95,7 @@ async fn generate_media(
 
     for generation in &generations {
         futures.push(upload_image_and_create_media(
-            dto, generation, claims, state,
+            request, generation, claims, state,
         ));
     }
 
@@ -124,7 +125,7 @@ async fn generate_media(
 }
 
 async fn upload_image_and_create_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     stable_horde_generation: &StableHordeGeneration,
     claims: &Claims,
     state: &Arc<AppState>,
@@ -152,9 +153,9 @@ async fn upload_image_and_create_media(
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
-            Ok(Media::from_dto(
+            Ok(Media::from_request(
                 &file_properties.id,
-                dto,
+                request,
                 Some(&stable_horde_generation.seed),
                 &response,
                 claims,
@@ -410,4 +411,8 @@ pub fn is_valid_size(width: &u16, height: &u16) -> bool {
     }
 
     return true;
+}
+
+pub fn is_valid_number(number: u8) -> bool {
+    return (number > 0) && (number < 9);
 }

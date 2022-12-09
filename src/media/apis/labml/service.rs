@@ -39,7 +39,7 @@ pub fn spawn_generate_media_task(
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request.generate_media_dto, &claims, &state).await {
+        match generate_media(&generate_media_request, &claims, &state).await {
             Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
@@ -62,11 +62,12 @@ pub fn spawn_generate_media_task(
 }
 
 async fn generate_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let labml_api_key = &state.envy.labml_api_key;
+    let dto = &request.generate_media_dto;
 
     let response_result = await_request_completion(dto, labml_api_key).await;
     let Ok(response) = response_result
@@ -84,7 +85,7 @@ async fn generate_media(
     let mut futures = Vec::with_capacity(response.images.len());
 
     for image in &response.images {
-        futures.push(upload_image_and_create_media(dto, image, claims, state));
+        futures.push(upload_image_and_create_media(request, image, claims, state));
     }
 
     let results = futures::future::join_all(futures).await;
@@ -113,7 +114,7 @@ async fn generate_media(
 }
 
 async fn upload_image_and_create_media(
-    dto: &GenerateMediaDto,
+    request: &GenerateMediaRequest,
     labml_image: &LabmlImage,
     claims: &Claims,
     state: &Arc<AppState>,
@@ -138,9 +139,9 @@ async fn upload_image_and_create_media(
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
 
-            Ok(Media::from_dto(
+            Ok(Media::from_request(
                 &file_properties.id,
-                dto,
+                request,
                 None,
                 &response,
                 claims,
@@ -381,4 +382,8 @@ pub fn is_valid_size(width: &u16, height: &u16) -> bool {
     }
 
     return true;
+}
+
+pub fn is_valid_number(number: u8) -> bool {
+    return number == 2;
 }
