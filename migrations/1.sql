@@ -17,8 +17,8 @@ CREATE TABLE users(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX users_updated_at ON users (updated_at);
-CREATE INDEX users_created_at ON users (created_at);
+CREATE INDEX users_updated_at_desc ON users (updated_at DESC);
+CREATE INDEX users_created_at_desc ON users (created_at DESC);
 
 CREATE TABLE devices(
     id VARCHAR(255) PRIMARY KEY,
@@ -30,9 +30,9 @@ CREATE TABLE devices(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX devices_user_id ON devices (user_id);
-CREATE INDEX devices_updated_at ON devices (updated_at);
-CREATE INDEX devices_created_at ON devices (created_at);
+CREATE INDEX devices_user_id_asc ON devices (user_id ASC);
+CREATE INDEX devices_updated_at_desc ON devices (updated_at DESC);
+CREATE INDEX devices_created_at_desc ON devices (created_at DESC);
 
 CREATE TABLE posts(
     id VARCHAR(255) PRIMARY KEY,
@@ -47,13 +47,14 @@ CREATE TABLE posts(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX posts_user_id ON posts (user_id);
-CREATE INDEX posts_published ON posts (published);
-CREATE INDEX posts_updated_at ON posts (updated_at);
-CREATE INDEX posts_created_at ON posts (created_at);
+CREATE INDEX posts_user_id_ASC ON posts (user_id ASC);
+CREATE INDEX posts_updated_at_asc ON posts (updated_at ASC);
+CREATE INDEX posts_updated_at_desc ON posts (updated_at DESC);
+CREATE INDEX posts_created_at_asc ON posts (created_at ASC);
+CREATE INDEX posts_created_at_desc ON posts (created_at DESC);
 
 CREATE TABLE posts_reports(
-    id VARCHAR(510) PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     post_id VARCHAR(255) REFERENCES posts(id) ON DELETE CASCADE,
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -73,9 +74,9 @@ CREATE TABLE media(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX media_user_id ON media (user_id);
-CREATE INDEX media_source ON media (source);
-CREATE INDEX media_created_at ON media (created_at);
+CREATE INDEX media_user_id_asc ON media (user_id ASC);
+CREATE INDEX media_source_asc ON media (source ASC);
+CREATE INDEX media_created_at_desc ON media (created_at DESC);
 
 CREATE TABLE generate_media_requests(
     id VARCHAR(255) PRIMARY KEY,
@@ -85,9 +86,9 @@ CREATE TABLE generate_media_requests(
     created_at BIGINT NOT NULL
 );
 
-CREATE INDEX generate_media_requests_user_id ON generate_media_requests (user_id);
-CREATE INDEX generate_media_requests_status ON generate_media_requests (status);
-CREATE INDEX generate_media_requests_created_at ON generate_media_requests (created_at);
+CREATE INDEX generate_media_requests_user_id_asc ON generate_media_requests (user_id ASC);
+CREATE INDEX generate_media_requests_status_asc ON generate_media_requests (status ASC);
+CREATE INDEX generate_media_requests_created_at_desc ON generate_media_requests (created_at DESC);
 
 CREATE TABLE transactions(
     id VARCHAR(255) PRIMARY KEY,
@@ -97,22 +98,19 @@ CREATE TABLE transactions(
 );
 
 CREATE TABLE follows(
-    id TEXT PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     follows_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     followed_at BIGINT NOT NULL
 );
 
-CREATE INDEX follows_follows_id ON follows (follows_id);
-CREATE INDEX follows_followed_at ON follows (followed_at);
+CREATE INDEX follows_followed_at_desc ON follows (followed_at DESC);
 
 CREATE TABLE blocks(
-    id TEXT PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     blocked_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     blocked_at BIGINT NOT NULL
 );
 
-CREATE INDEX blocks_user_id ON blocks (user_id);
-CREATE INDEX blocks_blocked_id ON blocks (blocked_id);
-CREATE INDEX blocks_blocked_at ON blocks (blocked_at);
+CREATE INDEX blocks_blocked_at_desc ON blocks (blocked_at DESC);

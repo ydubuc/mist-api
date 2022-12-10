@@ -61,10 +61,9 @@ impl GetPostsFilterDto {
         // FILTER BLOCKED USERS
         clauses.push(
             [
-                "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.user_id = '",
+                "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.id = CONCAT('",
                 &claims.id,
-                "' AND ",
-                "blocks.blocked_id = posts.user_id)",
+                "', posts.user_id))",
             ]
             .concat(),
         );
@@ -128,10 +127,6 @@ impl GetPostsFilterDto {
                     .concat(),
                 );
             }
-
-            // if let Some(cursor) = &self.cursor {
-            //     clauses.push(["posts.", &sort_field, " ", direction, " ", cursor].concat());
-            // }
         }
 
         // CLAUSES BUILDER
