@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use axum::{extract::Multipart, http::StatusCode};
 use sqlx::{PgPool, Postgres};
-use tokio::sync::RwLock;
 use tokio_retry::{strategy::FixedInterval, Retry};
 
 use crate::{
@@ -30,10 +29,7 @@ use super::{
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
-    util::{
-        backblaze::{self, b2::b2::B2},
-        openai,
-    },
+    util::{backblaze, openai},
 };
 
 const SUPPORTED_GENERATORS: [&str; 4] = [
@@ -58,6 +54,24 @@ pub async fn generate_media(
         return Err(e);
     }
 
+    let input_media = match &dto.input_media_id {
+        Some(id) => match get_media_by_id(id, claims, &state.pool).await {
+            Ok(media) => {
+                if media.width as u16 != dto.width || media.height as u16 != dto.height {
+                    return Err(ApiError {
+                        code: StatusCode::BAD_REQUEST,
+                        message: "Input image must have the same dimensions as request."
+                            .to_string(),
+                    });
+                } else {
+                    Some(media)
+                }
+            }
+            Err(e) => return Err(e),
+        },
+        None => None,
+    };
+
     let get_generate_media_request_result = get_generate_media_request(dto, claims, state).await;
     let Ok(generate_media_request) = get_generate_media_request_result
     else {
@@ -74,7 +88,7 @@ pub async fn generate_media(
             stable_horde::service::spawn_generate_media_task(req, claims, state)
         }
         MediaGenerator::MIST_STABILITY => {
-            mist_stability::service::spawn_generate_media_task(req, claims, state)
+            mist_stability::service::spawn_generate_media_task(req, input_media, claims, state)
         }
         MediaGenerator::LABML => labml::service::spawn_generate_media_task(req, claims, state),
         // this should not happen because it should be validated above
