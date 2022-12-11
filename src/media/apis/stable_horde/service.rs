@@ -374,7 +374,10 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         prompt: dto.prompt.to_string(),
         params: Some(InputSpecParams {
             sample_namer: None,
-            cfg_scale: None,
+            cfg_scale: match dto.cfg_scale {
+                Some(cfg_scale) => Some(cfg_scale as i8),
+                None => None,
+            },
             denoising_strength: None,
             seed: None,
             height: Some(dto.height),

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use reqwest::{header, Response, StatusCode};
+use reqwest::{header, StatusCode};
 use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
@@ -31,6 +31,7 @@ use super::{
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
+    input_media: Option<Media>,
     claims: Claims,
     state: Arc<AppState>,
 ) {
@@ -38,7 +39,7 @@ pub fn spawn_generate_media_task(
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request, &claims, &state).await {
+        match generate_media(&generate_media_request, &input_media, &claims, &state).await {
             Ok(m) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(m);
@@ -62,6 +63,7 @@ pub fn spawn_generate_media_task(
 
 async fn generate_media(
     request: &GenerateMediaRequest,
+    input_media: &Option<Media>,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
@@ -69,7 +71,7 @@ async fn generate_media(
     let dto = &request.generate_media_dto;
 
     let mist_stability_generate_images_result =
-        mist_stability_generate_images(dto, mist_stability_api_key).await;
+        mist_stability_generate_images(dto, input_media, mist_stability_api_key).await;
     let Ok(mist_response) = mist_stability_generate_images_result
     else {
         return Err(mist_stability_generate_images_result.unwrap_err());
@@ -151,23 +153,30 @@ async fn upload_image_and_create_media(
     }
 }
 
-async fn mist_stability_generate_images_with_retry(
-    dto: &GenerateMediaDto,
-    mist_stability_api_key: &str,
-) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
-    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+// async fn mist_stability_generate_images_with_retry(
+//     dto: &GenerateMediaDto,
+//     state: &Arc<AppState>,
+// ) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
+//     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
-    Retry::spawn(retry_strategy, || async {
-        mist_stability_generate_images(dto, mist_stability_api_key).await
-    })
-    .await
-}
+//     Retry::spawn(retry_strategy, || async {
+//         mist_stability_generate_images(dto, state).await
+//     })
+//     .await
+// }
 
 async fn mist_stability_generate_images(
     dto: &GenerateMediaDto,
+    input_media: &Option<Media>,
     mist_stability_api_key: &str,
 ) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
-    let input_spec = provide_input_spec(dto);
+    let input_spec = provide_input_spec(
+        dto,
+        match input_media {
+            Some(media) => Some(media.url.to_string()),
+            None => None,
+        },
+    );
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -211,13 +220,16 @@ async fn mist_stability_generate_images(
     }
 }
 
-fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
+fn provide_input_spec(dto: &GenerateMediaDto, input_image_url: Option<String>) -> InputSpec {
     InputSpec {
         prompt: dto.prompt.to_string(),
         width: dto.width,
         height: dto.height,
         number: dto.number,
+
         steps: Some(50),
+        cfg_scale: dto.cfg_scale,
+        input_image_url,
         engine: Some("stable-diffusion-512-v2-1".to_string()),
     }
 }
