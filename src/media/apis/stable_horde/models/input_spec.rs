@@ -21,6 +21,8 @@ pub struct InputSpec {
     pub source_processing: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_mask: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r2: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
