@@ -47,6 +47,8 @@ pub async fn edit_api_state(
         return Err(DefaultApiError::PermissionDenied.value());
     }
 
+    tracing::debug!("edit_api_state");
+
     let api_state = &state.api_state;
 
     if let Some(api_status) = &dto.api_status {
@@ -84,9 +86,9 @@ pub async fn edit_api_state(
         match state.envy.app_env.as_str() {
             "production" => {
                 let urls: [&str; 3] = [
-                    "https://mist-api-1-production.up.railway.app/",
-                    "https://mist-api-2-production.up.railway.app/",
-                    "https://mist-api-3-production.up.railway.app/",
+                    "https://mist-api-1-production.up.railway.app/status",
+                    "https://mist-api-2-production.up.railway.app/status",
+                    "https://mist-api-3-production.up.railway.app/status",
                 ];
 
                 for url in urls {
@@ -95,9 +97,9 @@ pub async fn edit_api_state(
             }
             "development" => {
                 let urls: [&str; 3] = [
-                    "https://mist-api-1-development.up.railway.app/",
-                    "https://mist-api-2-development.up.railway.app/",
-                    "https://mist-api-3-development.up.railway.app/",
+                    "https://mist-api-1-development.up.railway.app/status",
+                    "https://mist-api-2-development.up.railway.app/status",
+                    "https://mist-api-3-development.up.railway.app/status",
                 ];
 
                 for url in urls {
@@ -138,6 +140,19 @@ fn spawn_send_signal_edit_api_state(
         );
 
         let client = reqwest::Client::new();
-        let _ = client.post(url).headers(headers).json(&dto).send().await;
+        let result = client.patch(&url).headers(headers).json(&dto).send().await;
+
+        match result {
+            Ok(res) => {
+                tracing::debug!("{:?}", res);
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "spawn_send_signal_edit_api_state failed for {}: {:?}",
+                    url,
+                    e
+                );
+            }
+        }
     });
 }
