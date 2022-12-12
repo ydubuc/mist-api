@@ -19,6 +19,7 @@ pub struct GetPostsFilterDto {
     ))]
     pub search: Option<String>,
     pub published: Option<bool>,
+    pub following: Option<bool>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(min = 1, max = 100, message = "limit must equal or less than 100."))]
@@ -58,15 +59,27 @@ impl GetPostsFilterDto {
             clauses.push(["posts.published = $", &index.to_string()].concat());
         }
 
-        // FILTER BLOCKED USERS
-        clauses.push(
-            [
-                "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.id = CONCAT('",
-                &claims.id,
-                "', posts.user_id))",
-            ]
-            .concat(),
-        );
+        if self.following.unwrap_or(false) {
+            // FILTER FOR FOLLOWED USERS
+            clauses.push(
+                [
+                    "EXISTS (SELECT 1 FROM follows WHERE follows.id = CONCAT('",
+                    &claims.id,
+                    "', posts.user_id))",
+                ]
+                .concat(),
+            );
+        } else {
+            // FILTER BLOCKED USERS
+            clauses.push(
+                [
+                    "NOT EXISTS (SELECT 1 FROM blocks WHERE blocks.id = CONCAT('",
+                    &claims.id,
+                    "', posts.user_id))",
+                ]
+                .concat(),
+            );
+        }
 
         // SORT
         if let Some(sort) = &self.sort {
