@@ -19,7 +19,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
-    app::{envy::Envy, errors::DefaultApiError},
+    app::{enums::api_status::ApiStatus, envy::Envy, errors::DefaultApiError},
     media::util::backblaze::b2::{b2::B2, config::Config},
 };
 
@@ -39,7 +39,17 @@ mod users;
 pub struct AppState {
     pub pool: PgPool,
     pub b2: Arc<RwLock<B2>>,
+    pub api_state: Arc<ApiState>,
     pub envy: Envy,
+}
+
+#[derive(Clone)]
+pub struct ApiState {
+    pub api_status: Arc<RwLock<String>>,
+    pub dalle_status: Arc<RwLock<String>>,
+    pub labml_status: Arc<RwLock<String>>,
+    pub mist_stability_status: Arc<RwLock<String>>,
+    pub stable_horde_status: Arc<RwLock<String>>,
 }
 
 #[tokio::main]
@@ -95,6 +105,13 @@ async fn main() {
     let state = Arc::new(AppState {
         pool,
         b2: Arc::new(RwLock::new(b2)),
+        api_state: Arc::new(ApiState {
+            api_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
+            dalle_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
+            labml_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
+            mist_stability_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
+            stable_horde_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
+        }),
         envy,
     });
 
@@ -102,6 +119,8 @@ async fn main() {
     // let app = Router::with_state(state)
     let app = Router::new()
         .route("/", get(app::controller::get_root))
+        .route("/status", get(app::controller::get_api_state))
+        .route("/status", patch(app::controller::edit_api_state))
         // TRANSACTIONS
         .route(
             "/transactions",
