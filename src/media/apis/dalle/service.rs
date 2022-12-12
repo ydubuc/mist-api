@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::http::StatusCode;
 use bytes::Bytes;
-use reqwest::{header, Response};
+use reqwest::header;
 use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
@@ -69,7 +69,7 @@ async fn generate_media(
     let openai_api_key = &state.envy.openai_api_key;
     let dto = &request.generate_media_dto;
 
-    let dalle_generate_images_result = dalle_generate_images(dto, openai_api_key).await;
+    let dalle_generate_images_result = dalle_generate_images_with_retry(dto, openai_api_key).await;
     let Ok(dalle_response) = dalle_generate_images_result
     else {
         return Err(dalle_generate_images_result.unwrap_err());
@@ -155,7 +155,7 @@ async fn dalle_generate_images_with_retry(
     dto: &GenerateMediaDto,
     openai_api_key: &str,
 ) -> Result<DalleGenerateImagesResponse, ApiError> {
-    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+    let retry_strategy = FixedInterval::from_millis(30000).take(3);
 
     Retry::spawn(retry_strategy, || async {
         dalle_generate_images(dto, openai_api_key).await

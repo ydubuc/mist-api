@@ -397,6 +397,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         source_image: None,
         source_processing: None,
         source_mask: None,
+        r2: Some(false),
     }
 }
 
