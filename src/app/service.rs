@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::headers::{authorization::Bearer, Authorization};
-use reqwest::header;
+use reqwest::{header, StatusCode};
 use serde_json::{json, Value};
 
 use crate::{
@@ -143,15 +143,14 @@ fn spawn_send_signal_edit_api_state(
         let result = client.patch(&url).headers(headers).json(&dto).send().await;
 
         match result {
-            Ok(res) => {
-                tracing::debug!("{:?}", res);
-            }
+            Ok(res) => match res.text().await {
+                Ok(text) => tracing::debug!("{}: {:?}", url, text),
+                Err(e) => {
+                    tracing::warn!("spawn_send_signal_edit_api_state (2): {:?}", e)
+                }
+            },
             Err(e) => {
-                tracing::warn!(
-                    "spawn_send_signal_edit_api_state failed for {}: {:?}",
-                    url,
-                    e
-                );
+                tracing::warn!("spawn_send_signal_edit_api_state (3) ({}): {:?}", url, e);
             }
         }
     });
