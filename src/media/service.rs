@@ -6,6 +6,7 @@ use tokio_retry::{strategy::FixedInterval, Retry};
 
 use crate::{
     app::{
+        enums::api_status::ApiStatus,
         errors::DefaultApiError,
         models::api_error::ApiError,
         util::multipart::{
@@ -44,6 +45,14 @@ pub async fn generate_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<GenerateMediaRequest, ApiError> {
+    let api_status = state.api_state.api_status.read().await;
+    if *api_status == ApiStatus::Maintenance.value() {
+        return Err(ApiError {
+            code: StatusCode::SERVICE_UNAVAILABLE,
+            message: "Service is undergoing maintenance, try again later.".to_string(),
+        });
+    }
+
     if let Err(e) = is_valid_generator(dto) {
         return Err(e);
     }
@@ -83,21 +92,23 @@ pub async fn generate_media(
     let state = state.clone();
 
     match dto.generator.as_ref() {
-        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::DALLE => {
+            //
+            dalle::service::spawn_generate_media_task(req, claims, state)
+        }
         MediaGenerator::STABLE_HORDE => {
+            //
             stable_horde::service::spawn_generate_media_task(req, claims, state)
         }
         MediaGenerator::MIST_STABILITY => {
+            //
             mist_stability::service::spawn_generate_media_task(req, input_media, claims, state)
         }
-        MediaGenerator::LABML => labml::service::spawn_generate_media_task(req, claims, state),
-        // this should not happen because it should be validated above
-        _ => {
-            return Err(ApiError {
-                code: StatusCode::BAD_REQUEST,
-                message: "Media generator not supported.".to_string(),
-            })
+        MediaGenerator::LABML => {
+            //
+            labml::service::spawn_generate_media_task(req, claims, state)
         }
+        _ => return Err(DefaultApiError::InternalServerError.value()),
     }
 
     Ok(generate_media_request)
