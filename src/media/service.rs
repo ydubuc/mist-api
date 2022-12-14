@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, labml, mist_stability, stable_horde},
+    apis::{dalle, labml, mist_stability, replicate, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::media_generator::MediaGenerator,
     errors::MediaApiError,
@@ -33,11 +33,12 @@ use super::{
     util::{backblaze, openai},
 };
 
-const SUPPORTED_GENERATORS: [&str; 4] = [
+const SUPPORTED_GENERATORS: [&str; 5] = [
     MediaGenerator::DALLE,
     MediaGenerator::STABLE_HORDE,
     MediaGenerator::MIST_STABILITY,
     MediaGenerator::LABML,
+    MediaGenerator::OPENJOURNEY,
 ];
 
 pub async fn generate_media(
@@ -108,6 +109,10 @@ pub async fn generate_media(
             //
             labml::service::spawn_generate_media_task(req, claims, state)
         }
+        MediaGenerator::OPENJOURNEY => {
+            //
+            replicate::service::spawn_generate_media_task(req, claims, state)
+        }
         _ => return Err(DefaultApiError::InternalServerError.value()),
     }
 
@@ -124,6 +129,7 @@ fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
             mist_stability::service::is_valid_size(&dto.width, &dto.height)
         }
         MediaGenerator::LABML => labml::service::is_valid_size(&dto.width, &dto.height),
+        MediaGenerator::OPENJOURNEY => replicate::service::is_valid_size(&dto.width, &dto.height),
         _ => false,
     };
 
@@ -154,6 +160,7 @@ fn is_valid_number(dto: &GenerateMediaDto) -> Result<(), ApiError> {
         MediaGenerator::STABLE_HORDE => stable_horde::service::is_valid_number(dto.number),
         MediaGenerator::MIST_STABILITY => mist_stability::service::is_valid_number(dto.number),
         MediaGenerator::LABML => labml::service::is_valid_number(dto.number),
+        MediaGenerator::OPENJOURNEY => replicate::service::is_valid_number(dto.number),
         _ => false,
     };
 

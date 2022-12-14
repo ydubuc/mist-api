@@ -7,4 +7,5 @@ impl MediaGenerator {
     pub const STABLE_HORDE: &str = "stable_horde";
     pub const MIST_STABILITY: &str = "mist_stability";
     pub const LABML: &str = "labml";
+    pub const OPENJOURNEY: &str = "openjourney";
 }

@@ -6,6 +6,7 @@ pub enum MediaSource {
     StableHorde,
     MistStability,
     LabML,
+    Openjourney,
     Import,
 }
 
@@ -17,6 +18,7 @@ impl MediaSource {
             MediaSource::StableHorde => MediaGenerator::STABLE_HORDE.to_string(),
             MediaSource::MistStability => MediaGenerator::MIST_STABILITY.to_string(),
             MediaSource::LabML => MediaGenerator::LABML.to_string(),
+            MediaSource::Openjourney => MediaGenerator::OPENJOURNEY.to_string(),
             MediaSource::Import => "import".to_string(),
         }
     }

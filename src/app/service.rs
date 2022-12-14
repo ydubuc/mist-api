@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::headers::{authorization::Bearer, Authorization};
-use reqwest::{header, StatusCode};
+use reqwest::header;
 use serde_json::{json, Value};
 
 use crate::{
