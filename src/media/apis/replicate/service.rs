@@ -234,8 +234,6 @@ async fn await_request_completion(
         return Err(replicate_predictions_response_result.unwrap_err());
     };
 
-    tracing::debug!("{:?}", replicate_predictions_response);
-
     let mut request = replicate_predictions_response;
     let mut succeeded = false;
     let mut failed = false;
@@ -288,8 +286,6 @@ async fn await_request_completion(
         );
         return Err(DefaultApiError::InternalServerError.value());
     }
-
-    tracing::debug!("finished: {:?}", request);
 
     Ok(request)
 }
