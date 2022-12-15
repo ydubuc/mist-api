@@ -17,13 +17,15 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
+        self, dtos::generate_media_dto::GenerateMediaDto, enums::media_model::MediaModel,
+        models::media::Media, util::backblaze,
     },
     AppState,
 };
 
 use super::{
     config::API_URL,
+    enums::stable_horde_model_version::StableHordeModelVersion,
     models::input_spec::{InputSpec, InputSpecParams},
     structs::{
         stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
@@ -370,6 +372,13 @@ async fn get_request_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+    let version = match model.as_ref() {
+        MediaModel::STABLE_DIFFUSION_1_5 => StableHordeModelVersion::STABLE_DIFFUSION,
+        MediaModel::STABLE_DIFFUSION_2_1 => StableHordeModelVersion::STABLE_DIFFUSION_2_1,
+        _ => panic!("provide_input_spec for model {} not implemented.", model),
+    };
+
     InputSpec {
         prompt: dto.prompt.to_string(),
         params: Some(InputSpecParams {
@@ -392,13 +401,21 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         trusted_workers: Some(true),
         censor_nsfw: Some(false),
         workers: None,
-        // workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
-        models: Some(vec!["stable_diffusion".to_string()]),
+        models: Some(vec![version.to_string()]),
         source_image: None,
         source_processing: None,
         source_mask: None,
         r2: Some(false),
     }
+}
+
+pub fn is_valid_model(model: &str) -> bool {
+    let valid_models: [&str; 2] = [
+        MediaModel::STABLE_DIFFUSION_1_5,
+        MediaModel::STABLE_DIFFUSION_2_1,
+    ];
+
+    return valid_models.contains(&model);
 }
 
 pub fn is_valid_size(width: &u16, height: &u16) -> bool {

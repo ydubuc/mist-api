@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use reqwest::{header, StatusCode};
-use serde_json::{json, Value};
+use serde_json::Value;
 use tokio::time::sleep;
 use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
@@ -19,7 +19,7 @@ use crate::{
     },
     media::{
         self, apis::replicate::enums::replicate_prediction_status::ReplicatePredictionStatus,
-        dtos::generate_media_dto::GenerateMediaDto, enums::media_generator::MediaGenerator,
+        dtos::generate_media_dto::GenerateMediaDto, enums::media_model::MediaModel,
         models::media::Media, util::backblaze,
     },
     AppState,
@@ -27,8 +27,11 @@ use crate::{
 
 use super::{
     config::API_URL,
-    enums::replicate_model::ReplicateModel,
-    models::{input_spec::InputSpec, input_spec_openjourney::InputSpecOpenjourney},
+    enums::replicate_model_version::ReplicateModelVersion,
+    models::{
+        input_spec::InputSpec, input_spec_openjourney::InputSpecOpenjourney,
+        input_spec_sd15::InputStableDiffusion15, input_spec_sd21::InputStableDiffusion21,
+    },
     structs::replicate_predictions_response::ReplicatePredictionsResponse,
 };
 
@@ -394,21 +397,13 @@ async fn get_prediction_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
-    let version = match dto.generator.as_ref() {
-        MediaGenerator::OPENJOURNEY => ReplicateModel::OPENJOURNEY.to_string(),
-        _ => {
-            // this should not happen, but if it does it should fail the request
-            tracing::warn!(
-                "provide_input_spec received unsupported generator: {}",
-                dto.generator
-            );
-            "fail".to_string()
-        }
-    };
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+    let version: String;
 
-    let input: Value = match version.as_ref() {
-        ReplicateModel::OPENJOURNEY => {
-            // OPENJOURNEY SPEC
+    let input: Value = match model.as_ref() {
+        MediaModel::OPENJOURNEY => {
+            version = ReplicateModelVersion::OPENJOURNEY.to_string();
+
             serde_json::to_value(InputSpecOpenjourney {
                 prompt: dto.prompt.to_string(),
                 width: dto.width,
@@ -420,14 +415,39 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
             })
             .unwrap()
         }
-        _ => {
-            // this should not happen, but if it does it should fail the request
-            tracing::warn!(
-                "provide_input_spec received unsupported generator: {}",
-                dto.generator
-            );
-            serde_json::to_value(json!({ "fail": "fail" })).unwrap()
+        MediaModel::STABLE_DIFFUSION_1_5 => {
+            version = ReplicateModelVersion::STABLE_DIFFUSION_1_5.to_string();
+
+            serde_json::to_value(InputStableDiffusion15 {
+                prompt: dto.prompt.to_string(),
+                negative_prompt: dto.negative_prompt.clone(),
+                width: dto.width,
+                height: dto.height,
+                num_outputs: dto.number,
+                num_inference_steps: 50,
+                guidance_scale: dto.cfg_scale.unwrap_or(8),
+                scheduler: None,
+                seed: None,
+            })
+            .unwrap()
         }
+        MediaModel::STABLE_DIFFUSION_2_1 => {
+            version = ReplicateModelVersion::STABLE_DIFFUSION_2_1.to_string();
+
+            serde_json::to_value(InputStableDiffusion21 {
+                prompt: dto.prompt.to_string(),
+                negative_prompt: dto.negative_prompt.clone(),
+                width: dto.width,
+                height: dto.height,
+                num_outputs: dto.number,
+                num_inference_steps: 50,
+                guidance_scale: dto.cfg_scale.unwrap_or(8),
+                scheduler: None,
+                seed: None,
+            })
+            .unwrap()
+        }
+        _ => panic!("provide_input_spec for model {} not implemented.", model),
     };
 
     InputSpec {
@@ -435,24 +455,4 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         input,
         webhook_completed: None,
     }
-}
-
-pub fn is_valid_size(width: &u16, height: &u16) -> bool {
-    let valid_widths: [u16; 3] = [512, 768, 1024];
-
-    if !valid_widths.contains(width) {
-        return false;
-    }
-
-    let valid_heights: [u16; 3] = [512, 768, 1024];
-
-    if !valid_heights.contains(height) {
-        return false;
-    }
-
-    return true;
-}
-
-pub fn is_valid_number(number: u8) -> bool {
-    return number == 1 || number == 4;
 }

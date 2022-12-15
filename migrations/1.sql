@@ -71,6 +71,7 @@ CREATE TABLE media(
     generate_media_dto JSONB,
     seed VARCHAR(255),
     source VARCHAR(255) NOT NULL,
+    model VARCHAR(255),
     created_at BIGINT NOT NULL
 );
 

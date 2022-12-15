@@ -19,13 +19,15 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
+        self, dtos::generate_media_dto::GenerateMediaDto, enums::media_model::MediaModel,
+        models::media::Media, util::backblaze,
     },
     AppState,
 };
 
 use super::{
     config::API_URL,
+    enums::dalle_model::DalleModel,
     models::input_spec::InputSpec,
     structs::dalle_generate_images_response::{DalleDataBase64Json, DalleGenerateImagesResponse},
 };
@@ -215,6 +217,12 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         size,
         response_format: "b64_json".to_string(),
     }
+}
+
+pub fn is_valid_model(model: &str) -> bool {
+    let valid_models: [&str; 1] = [MediaModel::DALLE];
+
+    return valid_models.contains(&model);
 }
 
 pub fn is_valid_size(width: &u16, height: &u16) -> bool {

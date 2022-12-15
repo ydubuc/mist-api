@@ -25,27 +25,23 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, labml, mist_stability, replicate, stable_horde},
+    apis::{dalle, replicate, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
-    enums::media_generator::MediaGenerator,
+    enums::{media_generator::MediaGenerator, media_model::MediaModel},
     errors::MediaApiError,
     models::media::Media,
     util::{backblaze, openai},
 };
-
-const SUPPORTED_GENERATORS: [&str; 5] = [
-    MediaGenerator::DALLE,
-    MediaGenerator::STABLE_HORDE,
-    MediaGenerator::MIST_STABILITY,
-    MediaGenerator::LABML,
-    MediaGenerator::OPENJOURNEY,
-];
 
 pub async fn generate_media(
     dto: &GenerateMediaDto,
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<GenerateMediaRequest, ApiError> {
+    if let Err(e) = dto.is_valid() {
+        return Err(e);
+    }
+
     let api_status = state.api_state.api_status.read().await;
     if *api_status == ApiStatus::Maintenance.value() {
         return Err(ApiError {
@@ -54,33 +50,11 @@ pub async fn generate_media(
         });
     }
 
-    if let Err(e) = is_valid_generator(dto) {
-        return Err(e);
-    }
-    if let Err(e) = is_valid_size(dto) {
-        return Err(e);
-    }
-    if let Err(e) = is_valid_number(dto) {
-        return Err(e);
-    }
-
-    let input_media = match &dto.input_media_id {
-        Some(id) => match get_media_by_id(id, claims, &state.pool).await {
-            Ok(media) => {
-                if media.width as u16 != dto.width || media.height as u16 != dto.height {
-                    return Err(ApiError {
-                        code: StatusCode::BAD_REQUEST,
-                        message: "Input image must have the same dimensions as request."
-                            .to_string(),
-                    });
-                } else {
-                    Some(media)
-                }
-            }
-            Err(e) => return Err(e),
-        },
-        None => None,
-    };
+    // let get_input_media_if_any_result = get_input_media_if_any(dto, claims, state).await;
+    // let Ok(input_media) = get_input_media_if_any_result
+    // else {
+    //     return Err(get_input_media_if_any_result.unwrap_err());
+    // };
 
     let get_generate_media_request_result = get_generate_media_request(dto, claims, state).await;
     let Ok(generate_media_request) = get_generate_media_request_result
@@ -92,84 +66,53 @@ pub async fn generate_media(
     let claims = claims.clone();
     let state = state.clone();
 
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+
     match dto.generator.as_ref() {
-        MediaGenerator::DALLE => {
-            //
-            dalle::service::spawn_generate_media_task(req, claims, state)
-        }
+        MediaGenerator::MIST => match model.as_ref() {
+            MediaModel::OPENJOURNEY => {
+                replicate::service::spawn_generate_media_task(req, claims, state)
+            }
+            MediaModel::STABLE_DIFFUSION_1_5 => {
+                replicate::service::spawn_generate_media_task(req, claims, state)
+            }
+            MediaModel::STABLE_DIFFUSION_2_1 => {
+                replicate::service::spawn_generate_media_task(req, claims, state)
+            }
+            _ => return Err(DefaultApiError::InternalServerError.value()),
+        },
         MediaGenerator::STABLE_HORDE => {
-            //
             stable_horde::service::spawn_generate_media_task(req, claims, state)
         }
-        MediaGenerator::MIST_STABILITY => {
-            //
-            mist_stability::service::spawn_generate_media_task(req, input_media, claims, state)
-        }
-        MediaGenerator::LABML => {
-            //
-            labml::service::spawn_generate_media_task(req, claims, state)
-        }
-        MediaGenerator::OPENJOURNEY => {
-            //
-            replicate::service::spawn_generate_media_task(req, claims, state)
-        }
+        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
         _ => return Err(DefaultApiError::InternalServerError.value()),
     }
 
     Ok(generate_media_request)
 }
 
-fn is_valid_size(dto: &GenerateMediaDto) -> Result<(), ApiError> {
-    let is_valid = match dto.generator.as_ref() {
-        MediaGenerator::DALLE => dalle::service::is_valid_size(&dto.width, &dto.height),
-        MediaGenerator::STABLE_HORDE => {
-            stable_horde::service::is_valid_size(&dto.width, &dto.height)
-        }
-        MediaGenerator::MIST_STABILITY => {
-            mist_stability::service::is_valid_size(&dto.width, &dto.height)
-        }
-        MediaGenerator::LABML => labml::service::is_valid_size(&dto.width, &dto.height),
-        MediaGenerator::OPENJOURNEY => replicate::service::is_valid_size(&dto.width, &dto.height),
-        _ => false,
+async fn get_input_media_if_any(
+    dto: &GenerateMediaDto,
+    claims: &Claims,
+    state: &Arc<AppState>,
+) -> Result<Option<Media>, ApiError> {
+    let Some(id) = &dto.input_media_id
+    else {
+        return Ok(None);
     };
 
-    match is_valid {
-        true => Ok(()),
-        false => Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "This size format is currently not supported.".to_string(),
-        }),
-    }
-}
-
-fn is_valid_generator(dto: &GenerateMediaDto) -> Result<(), ApiError> {
-    let is_valid = SUPPORTED_GENERATORS.contains(&dto.generator.as_ref());
-
-    match is_valid {
-        true => Ok(()),
-        false => Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "Media generator not supported.".to_string(),
-        }),
-    }
-}
-
-fn is_valid_number(dto: &GenerateMediaDto) -> Result<(), ApiError> {
-    let is_valid = match dto.generator.as_ref() {
-        MediaGenerator::DALLE => dalle::service::is_valid_number(dto.number),
-        MediaGenerator::STABLE_HORDE => stable_horde::service::is_valid_number(dto.number),
-        MediaGenerator::MIST_STABILITY => mist_stability::service::is_valid_number(dto.number),
-        MediaGenerator::LABML => labml::service::is_valid_number(dto.number),
-        MediaGenerator::OPENJOURNEY => replicate::service::is_valid_number(dto.number),
-        _ => false,
-    };
-
-    match is_valid {
-        true => Ok(()),
-        false => Err(ApiError {
-            code: StatusCode::BAD_REQUEST,
-            message: "This number is currently not supported.".to_string(),
-        }),
+    match get_media_by_id(id, claims, &state.pool).await {
+        Ok(media) => {
+            if media.width as u16 != dto.width || media.height as u16 != dto.height {
+                return Err(ApiError {
+                    code: StatusCode::BAD_REQUEST,
+                    message: "Input image must have the same dimensions as request.".to_string(),
+                });
+            } else {
+                Ok(Some(media))
+            }
+        }
+        Err(e) => return Err(e),
     }
 }
 
@@ -321,7 +264,7 @@ async fn on_generate_media_completion(
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::warn!("on_generate_media_completion failed to rollback edit_generate_media_request_by_id_as_tx_result: {:?}", e);
+            tracing::error!("on_generate_media_completion failed to rollback edit_generate_media_request_by_id_as_tx_result: {:?}", e);
         } else {
             tracing::warn!("on_generate_media_completion rolled back edit_generate_media_request_by_id_as_tx_result");
         }
@@ -364,7 +307,7 @@ async fn on_generate_media_completion(
         let rollback_result = tx.rollback().await;
 
         if let Some(e) = rollback_result.err() {
-            tracing::warn!(
+            tracing::error!(
                 "on_generate_media_completion failed to roll back edit_user_ink_by_id_result: {:?}",
                 e
             );
