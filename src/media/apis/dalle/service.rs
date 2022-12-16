@@ -27,7 +27,6 @@ use crate::{
 
 use super::{
     config::API_URL,
-    enums::dalle_model::DalleModel,
     models::input_spec::InputSpec,
     structs::dalle_generate_images_response::{DalleDataBase64Json, DalleGenerateImagesResponse},
 };

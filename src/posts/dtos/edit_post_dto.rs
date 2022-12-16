@@ -3,8 +3,8 @@ use serde::Deserialize;
 use validator::Validate;
 
 use crate::{
-    app::{models::api_error::ApiError, util::time},
-    auth::jwt::models::claims::Claims,
+    app::{errors::DefaultApiError, models::api_error::ApiError, util::time},
+    auth::jwt::{enums::roles::Roles, models::claims::Claims},
 };
 
 #[derive(Debug, Deserialize, Validate)]
@@ -22,10 +22,13 @@ pub struct EditPostDto {
     // ))]
     // pub content: Option<String>,
     pub published: Option<bool>,
+    pub featured: Option<bool>,
 }
 
 impl EditPostDto {
     pub fn to_sql(&self, claims: &Claims) -> Result<String, ApiError> {
+        let is_mod = claims.is_mod();
+
         let mut sql = "UPDATE posts SET ".to_string();
         let mut clauses = Vec::new();
 
@@ -42,6 +45,14 @@ impl EditPostDto {
         // }
         if self.published.is_some() {
             clauses.push(["published = $", &index.to_string()].concat());
+            index += 1;
+        }
+        if self.featured.is_some() {
+            if !is_mod {
+                return Err(DefaultApiError::PermissionDenied.value());
+            }
+
+            clauses.push(["featured = $", &index.to_string()].concat());
             index += 1;
         }
 
@@ -65,7 +76,11 @@ impl EditPostDto {
         sql.push_str(&[", updated_at = ", &updated_at.to_string()].concat());
 
         sql.push_str(&[" WHERE id = $", &index.to_string()].concat());
-        sql.push_str(&[" AND user_id = '", &claims.id, "'"].concat());
+
+        if !is_mod {
+            sql.push_str(&[" AND user_id = '", &claims.id, "'"].concat());
+        }
+
         sql.push_str(" RETURNING *");
 
         tracing::debug!(sql);

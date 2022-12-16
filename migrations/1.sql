@@ -42,6 +42,7 @@ CREATE TABLE posts(
     media JSONB,
     generate_media_dto JSONB,
     published BOOLEAN NOT NULL DEFAULT TRUE,
+    featured BOOLEAN NOT NULL DEFAULT FALSE,
     reports_count SMALLINT NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
@@ -115,3 +116,10 @@ CREATE TABLE blocks(
 );
 
 CREATE INDEX blocks_blocked_at_desc ON blocks (blocked_at DESC);
+
+
+
+
+// TODO: production migrations
+# ALTER TABLE media ADD COLUMN model VARCHAR(255);
+# ALTER TABLE posts ADD COLUMN featured BOOLEAN NOT NULL DEFAULT FALSE;

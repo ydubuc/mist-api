@@ -58,8 +58,8 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     let sqlx_result = sqlx::query(
         "
         INSERT INTO posts (
-            id, user_id, title, content, media,
-            generate_media_dto, published, reports_count, updated_at, created_at
+            id, user_id, title, content, media, generate_media_dto,
+            published, featured, reports_count, updated_at, created_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ",
@@ -71,6 +71,7 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     .bind(&post.media)
     .bind(&post.generate_media_dto)
     .bind(&post.published)
+    .bind(&post.featured)
     .bind(&post.reports_count)
     .bind(&post.updated_at)
     .bind(&post.created_at)
@@ -130,6 +131,9 @@ pub async fn get_posts(
     }
     if let Some(published) = &dto.published {
         sqlx = sqlx.bind(published);
+    }
+    if let Some(featured) = &dto.featured {
+        sqlx = sqlx.bind(featured)
     }
 
     match sqlx.fetch_all(pool).await {
@@ -215,7 +219,10 @@ pub async fn edit_post_by_id(
     //     sqlx = sqlx.bind(content);
     // }
     if let Some(published) = &dto.published {
-        sqlx = sqlx.bind(published)
+        sqlx = sqlx.bind(published);
+    }
+    if let Some(featured) = &dto.featured {
+        sqlx = sqlx.bind(featured);
     }
     sqlx = sqlx.bind(id);
 
