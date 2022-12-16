@@ -4,7 +4,7 @@ use validator::Validate;
 
 use crate::{
     app::{errors::DefaultApiError, models::api_error::ApiError, util::time},
-    auth::jwt::{enums::roles::Roles, models::claims::Claims},
+    auth::jwt::models::claims::Claims,
 };
 
 #[derive(Debug, Deserialize, Validate)]
