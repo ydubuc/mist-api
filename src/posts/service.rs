@@ -61,7 +61,7 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
             id, user_id, title, content, media, generate_media_dto,
             published, featured, reports_count, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ",
     )
     .bind(&post.id)
