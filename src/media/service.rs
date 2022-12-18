@@ -551,6 +551,9 @@ pub async fn get_media(
     if let Some(source) = &dto.source {
         sqlx = sqlx.bind(source);
     }
+    if let Some(model) = &dto.model {
+        sqlx = sqlx.bind(model);
+    }
 
     match sqlx.fetch_all(pool).await {
         Ok(media) => Ok(media),

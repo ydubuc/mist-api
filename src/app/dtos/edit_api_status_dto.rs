@@ -7,14 +7,6 @@ use crate::app::enums::api_status::ApiStatus;
 pub struct EditApiStatusDto {
     #[validate(custom(function = "validate_status"))]
     pub api_status: Option<String>,
-    #[validate(custom(function = "validate_status"))]
-    pub dalle_status: Option<String>,
-    #[validate(custom(function = "validate_status"))]
-    pub labml_status: Option<String>,
-    #[validate(custom(function = "validate_status"))]
-    pub mist_stability_status: Option<String>,
-    #[validate(custom(function = "validate_status"))]
-    pub stable_horde_status: Option<String>,
     pub send_signal: bool,
 }
 

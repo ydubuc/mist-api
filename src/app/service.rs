@@ -18,17 +18,9 @@ pub async fn get_api_state(state: &Arc<AppState>) -> Value {
     let api_state = &state.api_state;
 
     let api_status = api_state.api_status.read().await.to_string();
-    let dalle_status = api_state.dalle_status.read().await.to_string();
-    let labml_status = api_state.labml_status.read().await.to_string();
-    let mist_stability_status = api_state.mist_stability_status.read().await.to_string();
-    let stable_horde_status = api_state.stable_horde_status.read().await.to_string();
 
     return json!({
         "api_status": api_status,
-        "dalle_status": dalle_status,
-        "labml_status": labml_status,
-        "mist_stability_status": mist_stability_status,
-        "stable_horde_status": stable_horde_status,
     });
 }
 
@@ -47,37 +39,11 @@ pub async fn edit_api_state(
         return Err(DefaultApiError::PermissionDenied.value());
     }
 
-    tracing::debug!("edit_api_state");
-
     let api_state = &state.api_state;
 
     if let Some(api_status) = &dto.api_status {
         let mut current_status = api_state.api_status.write().await;
         *current_status = api_status.to_string();
-
-        drop(current_status);
-    }
-    if let Some(dalle_status) = &dto.dalle_status {
-        let mut current_status = api_state.dalle_status.write().await;
-        *current_status = dalle_status.to_string();
-
-        drop(current_status);
-    }
-    if let Some(labml_status) = &dto.labml_status {
-        let mut current_status = api_state.labml_status.write().await;
-        *current_status = labml_status.to_string();
-
-        drop(current_status);
-    }
-    if let Some(mist_stability_status) = &dto.mist_stability_status {
-        let mut current_status = api_state.mist_stability_status.write().await;
-        *current_status = mist_stability_status.to_string();
-
-        drop(current_status);
-    }
-    if let Some(stable_horde_status) = &dto.stable_horde_status {
-        let mut current_status = api_state.stable_horde_status.write().await;
-        *current_status = stable_horde_status.to_string();
 
         drop(current_status);
     }
@@ -123,10 +89,6 @@ fn spawn_send_signal_edit_api_state(
     let url = url.to_string();
     let dto = EditApiStatusDto {
         api_status: dto.api_status.clone(),
-        dalle_status: dto.dalle_status.clone(),
-        labml_status: dto.labml_status.clone(),
-        mist_stability_status: dto.mist_stability_status.clone(),
-        stable_horde_status: dto.stable_horde_status.clone(),
         send_signal: false,
     };
     let authorization = authorization.clone();

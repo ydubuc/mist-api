@@ -10,7 +10,7 @@ pub fn is_valid_model(model: &str) -> bool {
     return valid_models.contains(&model);
 }
 
-pub fn is_valid_size(width: &u16, height: &u16, model: &str) -> bool {
+pub fn is_valid_size(width: &u16, height: &u16, _model: &str) -> bool {
     let valid_widths: [u16; 3] = [512, 768, 1024];
 
     if !valid_widths.contains(width) {
