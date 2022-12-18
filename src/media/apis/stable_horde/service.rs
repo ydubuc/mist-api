@@ -372,7 +372,7 @@ async fn get_request_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
-    let model = &dto.model;
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
     let version = match model.as_ref() {
         MediaModel::STABLE_DIFFUSION_1_5 => StableHordeModelVersion::STABLE_DIFFUSION,
         MediaModel::STABLE_DIFFUSION_2_1 => StableHordeModelVersion::STABLE_DIFFUSION_2_1,

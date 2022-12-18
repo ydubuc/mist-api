@@ -67,7 +67,7 @@ impl Media {
                 None => None,
             },
             source: dto.generator.to_string(),
-            model: Some(dto.model.to_string()),
+            model: Some(dto.model.clone().unwrap_or(dto.default_model().to_string())),
             created_at: time::current_time_in_secs() as i64,
         };
     }

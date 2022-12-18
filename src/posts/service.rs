@@ -10,45 +10,14 @@ use crate::{
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
     auth::jwt::{enums::roles::Roles, models::claims::Claims},
-    media::{self, models::media::Media},
     AppState,
 };
 
 use super::{
-    dtos::{
-        create_post_dto::CreatePostDto, edit_post_dto::EditPostDto,
-        get_posts_filter_dto::GetPostsFilterDto,
-    },
+    dtos::{edit_post_dto::EditPostDto, get_posts_filter_dto::GetPostsFilterDto},
     errors::PostsApiError,
     models::post::Post,
 };
-
-pub async fn create_post(
-    dto: &CreatePostDto,
-    claims: &Claims,
-    pool: &PgPool,
-) -> Result<Post, ApiError> {
-    let mut media: Option<Vec<Media>> = None;
-
-    if let Some(media_ids) = &dto.media_ids {
-        let mut temp_media = Vec::new();
-
-        for media_id in media_ids {
-            match media::service::get_media_by_id(media_id, claims, pool).await {
-                Ok(m) => temp_media.push(m),
-                Err(e) => return Err(e),
-            }
-        }
-
-        if temp_media.len() > 0 {
-            media = Some(temp_media);
-        }
-    }
-
-    let post = Post::new(claims, dto, media);
-
-    save_post_as_admin(post, pool).await
-}
 
 pub async fn create_post_as_admin(post: Post, pool: &PgPool) {
     let _ = save_post_as_admin(post, pool).await;

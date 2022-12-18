@@ -397,7 +397,7 @@ async fn get_prediction_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
-    let model = &dto.model;
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
     let version: String;
 
     let input: Value = match model.as_ref() {
@@ -410,7 +410,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 height: dto.height,
                 num_outputs: dto.number,
                 num_inference_steps: 50,
-                guidance_scale: dto.cfg_scale.unwrap_or(7),
+                guidance_scale: dto.cfg_scale.unwrap_or(8),
                 seed: None,
             })
             .unwrap()
@@ -426,7 +426,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 num_outputs: dto.number,
                 num_inference_steps: 50,
                 guidance_scale: dto.cfg_scale.unwrap_or(8),
-                scheduler: None,
+                scheduler: Some("K-LMS".to_string()),
                 seed: None,
             })
             .unwrap()
@@ -442,7 +442,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 num_outputs: dto.number,
                 num_inference_steps: 50,
                 guidance_scale: dto.cfg_scale.unwrap_or(8),
-                scheduler: None,
+                scheduler: Some("K_EULER".to_string()),
                 seed: None,
             })
             .unwrap()

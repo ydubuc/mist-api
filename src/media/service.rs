@@ -66,8 +66,10 @@ pub async fn generate_media(
     let claims = claims.clone();
     let state = state.clone();
 
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+
     match dto.generator.as_ref() {
-        MediaGenerator::MIST => match dto.model.as_ref() {
+        MediaGenerator::MIST => match model.as_ref() {
             MediaModel::OPENJOURNEY => {
                 replicate::service::spawn_generate_media_task(req, claims, state)
             }
@@ -465,13 +467,13 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
     // we need to insert num_properties * media.len()
     // therefore we loop to map each binding to a VALUE number
 
-    let num_properties: u8 = 12;
+    let num_properties: u8 = 13;
 
     let mut sql = "
     INSERT INTO media (
         id, user_id, file_id, post_id, url,
         width, height, mime_type,
-        generate_media_dto, seed, source, created_at
+        generate_media_dto, seed, source, model, created_at
     ) "
     .to_string();
 
@@ -509,6 +511,7 @@ async fn upload_media(media: Vec<Media>, pool: &PgPool) -> Result<Vec<Media>, Ap
         sqlx = sqlx.bind(&m.generate_media_dto);
         sqlx = sqlx.bind(&m.seed);
         sqlx = sqlx.bind(&m.source);
+        sqlx = sqlx.bind(&m.model);
         sqlx = sqlx.bind(m.created_at.to_owned() as i64);
     }
 
