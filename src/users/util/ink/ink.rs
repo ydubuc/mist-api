@@ -12,14 +12,15 @@ use crate::{
 use super::dtos::edit_user_ink_dto::EditUserInkDto;
 
 pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) -> i64 {
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
-
     let base_ink = match dto.generator.as_ref() {
-        MediaGenerator::MIST => match model.as_ref() {
+        MediaGenerator::MIST => match dto.model.as_ref() {
             MediaModel::OPENJOURNEY => 30.0,
             MediaModel::STABLE_DIFFUSION_1_5 => 20.0,
             MediaModel::STABLE_DIFFUSION_2_1 => 20.0,
-            _ => panic!("calculate_ink_cost for model {} not implemented.", model),
+            _ => panic!(
+                "calculate_ink_cost for model {} not implemented.",
+                dto.model
+            ),
         },
         MediaGenerator::STABLE_HORDE => 10.0,
         MediaGenerator::DALLE => 40.0,

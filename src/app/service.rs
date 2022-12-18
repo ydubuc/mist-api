@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use axum::headers::{authorization::Bearer, Authorization};
-use reqwest::header;
 use serde_json::{json, Value};
 
 use crate::{
@@ -27,7 +25,6 @@ pub async fn get_api_state(state: &Arc<AppState>) -> Value {
 pub async fn edit_api_state(
     dto: &EditApiStatusDto,
     claims: &Claims,
-    authorization: &Authorization<Bearer>,
     state: &Arc<AppState>,
 ) -> Result<Value, ApiError> {
     let Some(roles) = &claims.roles
@@ -48,72 +45,5 @@ pub async fn edit_api_state(
         drop(current_status);
     }
 
-    if dto.send_signal {
-        match state.envy.app_env.as_str() {
-            "production" => {
-                let urls: [&str; 3] = [
-                    "https://mist-api-1-production.up.railway.app/status",
-                    "https://mist-api-2-production.up.railway.app/status",
-                    "https://mist-api-3-production.up.railway.app/status",
-                ];
-
-                for url in urls {
-                    spawn_send_signal_edit_api_state(url, dto, authorization);
-                }
-            }
-            "development" => {
-                let urls: [&str; 3] = [
-                    "https://mist-api-1-development.up.railway.app/status",
-                    "https://mist-api-2-development.up.railway.app/status",
-                    "https://mist-api-3-development.up.railway.app/status",
-                ];
-
-                for url in urls {
-                    spawn_send_signal_edit_api_state(url, dto, authorization);
-                }
-            }
-            _ => {
-                // not sending signal
-            }
-        }
-    }
-
     return Ok(get_api_state(state).await);
-}
-
-fn spawn_send_signal_edit_api_state(
-    url: &str,
-    dto: &EditApiStatusDto,
-    authorization: &Authorization<Bearer>,
-) {
-    let url = url.to_string();
-    let dto = EditApiStatusDto {
-        api_status: dto.api_status.clone(),
-        send_signal: false,
-    };
-    let authorization = authorization.clone();
-
-    tokio::spawn(async move {
-        let mut headers = header::HeaderMap::new();
-        headers.insert("Content-Type", "application/json".parse().unwrap());
-        headers.insert(
-            "Authorization",
-            ["Bearer ", authorization.token()].concat().parse().unwrap(),
-        );
-
-        let client = reqwest::Client::new();
-        let result = client.patch(&url).headers(headers).json(&dto).send().await;
-
-        match result {
-            Ok(res) => match res.text().await {
-                Ok(text) => tracing::debug!("{}: {:?}", url, text),
-                Err(e) => {
-                    tracing::warn!("spawn_send_signal_edit_api_state (2): {:?}", e)
-                }
-            },
-            Err(e) => {
-                tracing::warn!("spawn_send_signal_edit_api_state (3) ({}): {:?}", url, e);
-            }
-        }
-    });
 }

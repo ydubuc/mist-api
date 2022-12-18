@@ -31,8 +31,6 @@ pub async fn edit_api_state(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<EditApiStatusDto>,
 ) -> Result<Json<Value>, ApiError> {
-    let authorization_copy = authorization.clone();
-
     match Claims::from_header(authorization, &state.envy.jwt_secret) {
         Ok(claims) => {
             if let Err(e) = dto.validate() {
@@ -42,7 +40,7 @@ pub async fn edit_api_state(
                 });
             }
 
-            match service::edit_api_state(&dto, &claims, &authorization_copy, &state).await {
+            match service::edit_api_state(&dto, &claims, &state).await {
                 Ok(value) => Ok(Json(value)),
                 Err(e) => Err(e),
             }

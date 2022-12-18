@@ -23,8 +23,7 @@ pub struct GenerateMediaDto {
     pub width: u16,
     pub height: u16,
     pub generator: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
+    pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[validate(length(
         min = 1,
@@ -63,11 +62,7 @@ impl GenerateMediaDto {
             width: self.width,
             height: self.height,
             generator: self.generator.to_string(),
-            model: Some(
-                self.model
-                    .clone()
-                    .unwrap_or(self.default_model().to_string()),
-            ),
+            model: self.model.to_string(),
             negative_prompt: match &self.negative_prompt {
                 Some(negative_prompt) => {
                     Some(negative_prompt.trim().replace("\n", " ").replace("\r", " "))
@@ -81,6 +76,8 @@ impl GenerateMediaDto {
     }
 
     pub fn is_valid(&self) -> Result<(), ApiError> {
+        let model = &self.model;
+
         let is_valid_generator: bool;
         let is_valid_model: bool;
         let is_valid_size: bool;
@@ -88,33 +85,18 @@ impl GenerateMediaDto {
 
         match self.generator.as_ref() {
             MediaGenerator::MIST => {
-                let model = self
-                    .model
-                    .clone()
-                    .unwrap_or(self.default_model().to_string());
-
                 is_valid_generator = true;
                 is_valid_model = mist::service::is_valid_model(&model);
                 is_valid_size = mist::service::is_valid_size(&self.width, &self.height, &model);
                 is_valid_number = mist::service::is_valid_number(self.number, &model);
             }
             MediaGenerator::STABLE_HORDE => {
-                let model = self
-                    .model
-                    .clone()
-                    .unwrap_or(self.default_model().to_string());
-
                 is_valid_generator = true;
                 is_valid_model = stable_horde::service::is_valid_model(&model);
                 is_valid_size = stable_horde::service::is_valid_size(&self.width, &self.height);
                 is_valid_number = stable_horde::service::is_valid_number(self.number);
             }
             MediaGenerator::DALLE => {
-                let model = self
-                    .model
-                    .clone()
-                    .unwrap_or(self.default_model().to_string());
-
                 is_valid_generator = true;
                 is_valid_model = dalle::service::is_valid_model(&model);
                 is_valid_size = dalle::service::is_valid_size(&self.width, &self.height);

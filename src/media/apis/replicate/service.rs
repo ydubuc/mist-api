@@ -397,7 +397,7 @@ async fn get_prediction_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+    let model = &dto.model;
     let version: String;
 
     let input: Value = match model.as_ref() {

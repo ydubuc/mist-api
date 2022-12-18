@@ -66,10 +66,8 @@ pub async fn generate_media(
     let claims = claims.clone();
     let state = state.clone();
 
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
-
     match dto.generator.as_ref() {
-        MediaGenerator::MIST => match model.as_ref() {
+        MediaGenerator::MIST => match dto.model.as_ref() {
             MediaModel::OPENJOURNEY => {
                 replicate::service::spawn_generate_media_task(req, claims, state)
             }
