@@ -154,7 +154,7 @@ async fn upload_image_and_create_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes(replicate_output_url, &state.envy.replicate_api_key).await
+    let Ok(bytes) = get_bytes_with_retry(replicate_output_url, &state.envy.replicate_api_key).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -191,6 +191,15 @@ async fn upload_image_and_create_media(
             Err(e)
         }
     }
+}
+
+async fn get_bytes_with_retry(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async {
+        get_bytes(url, replicate_api_key).await
+    })
+    .await
 }
 
 async fn get_bytes(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError> {
