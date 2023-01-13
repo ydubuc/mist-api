@@ -30,6 +30,8 @@ pub struct Media {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<String>,
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     pub created_at: i64,
 }
 
@@ -65,6 +67,7 @@ impl Media {
                 None => None,
             },
             source: dto.generator.to_string(),
+            model: Some(dto.model.clone().unwrap_or(dto.default_model().to_string())),
             created_at: time::current_time_in_secs() as i64,
         };
     }
@@ -95,6 +98,7 @@ impl Media {
             generate_media_dto: None,
             seed: None,
             source: MediaSource::Import.value(),
+            model: None,
             created_at: time::current_time_in_secs() as i64,
         };
     }

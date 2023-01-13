@@ -10,45 +10,14 @@ use crate::{
         util::sqlx::{get_code_from_db_err, SqlStateCodes},
     },
     auth::jwt::{enums::roles::Roles, models::claims::Claims},
-    media::{self, models::media::Media},
     AppState,
 };
 
 use super::{
-    dtos::{
-        create_post_dto::CreatePostDto, edit_post_dto::EditPostDto,
-        get_posts_filter_dto::GetPostsFilterDto,
-    },
+    dtos::{edit_post_dto::EditPostDto, get_posts_filter_dto::GetPostsFilterDto},
     errors::PostsApiError,
     models::post::Post,
 };
-
-pub async fn create_post(
-    dto: &CreatePostDto,
-    claims: &Claims,
-    pool: &PgPool,
-) -> Result<Post, ApiError> {
-    let mut media: Option<Vec<Media>> = None;
-
-    if let Some(media_ids) = &dto.media_ids {
-        let mut temp_media = Vec::new();
-
-        for media_id in media_ids {
-            match media::service::get_media_by_id(media_id, claims, pool).await {
-                Ok(m) => temp_media.push(m),
-                Err(e) => return Err(e),
-            }
-        }
-
-        if temp_media.len() > 0 {
-            media = Some(temp_media);
-        }
-    }
-
-    let post = Post::new(claims, dto, media);
-
-    save_post_as_admin(post, pool).await
-}
 
 pub async fn create_post_as_admin(post: Post, pool: &PgPool) {
     let _ = save_post_as_admin(post, pool).await;
@@ -58,10 +27,10 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     let sqlx_result = sqlx::query(
         "
         INSERT INTO posts (
-            id, user_id, title, content, media,
-            generate_media_dto, published, reports_count, updated_at, created_at
+            id, user_id, title, content, media, generate_media_dto,
+            published, featured, reports_count, updated_at, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ",
     )
     .bind(&post.id)
@@ -71,6 +40,7 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     .bind(&post.media)
     .bind(&post.generate_media_dto)
     .bind(&post.published)
+    .bind(&post.featured)
     .bind(&post.reports_count)
     .bind(&post.updated_at)
     .bind(&post.created_at)
@@ -130,6 +100,9 @@ pub async fn get_posts(
     }
     if let Some(published) = &dto.published {
         sqlx = sqlx.bind(published);
+    }
+    if let Some(featured) = &dto.featured {
+        sqlx = sqlx.bind(featured)
     }
 
     match sqlx.fetch_all(pool).await {
@@ -215,7 +188,10 @@ pub async fn edit_post_by_id(
     //     sqlx = sqlx.bind(content);
     // }
     if let Some(published) = &dto.published {
-        sqlx = sqlx.bind(published)
+        sqlx = sqlx.bind(published);
+    }
+    if let Some(featured) = &dto.featured {
+        sqlx = sqlx.bind(featured);
     }
     sqlx = sqlx.bind(id);
 

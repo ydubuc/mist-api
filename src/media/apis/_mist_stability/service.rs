@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use reqwest::{header, StatusCode};
-use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
 use crate::{

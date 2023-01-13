@@ -21,5 +21,6 @@ pub struct StableHordeGeneration {
     pub worker_name: String,
     pub model: String,
     pub img: String,
+    pub censored: bool,
     pub seed: String,
 }

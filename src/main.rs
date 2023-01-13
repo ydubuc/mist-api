@@ -1,4 +1,4 @@
-// #![allow(dead_code)]
+#![allow(dead_code)]
 // #![allow(unused_variables)]
 
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
@@ -46,10 +46,6 @@ pub struct AppState {
 #[derive(Clone)]
 pub struct ApiState {
     pub api_status: Arc<RwLock<String>>,
-    pub dalle_status: Arc<RwLock<String>>,
-    pub labml_status: Arc<RwLock<String>>,
-    pub mist_stability_status: Arc<RwLock<String>>,
-    pub stable_horde_status: Arc<RwLock<String>>,
 }
 
 #[tokio::main]
@@ -84,7 +80,7 @@ async fn main() {
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
 
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(33)
         .min_connections(1)
         .connect(&envy.database_url)
         .await
@@ -107,10 +103,6 @@ async fn main() {
         b2: Arc::new(RwLock::new(b2)),
         api_state: Arc::new(ApiState {
             api_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
-            dalle_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
-            labml_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
-            mist_stability_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
-            stable_horde_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
         }),
         envy,
     });
@@ -157,7 +149,6 @@ async fn main() {
         .route("/users/:id", get(users::controller::get_user_by_id))
         .route("/users/:id", patch(users::controller::edit_user_by_id))
         // POSTS
-        // .route("/posts", post(posts::controller::create_post))
         .route("/posts", get(posts::controller::get_posts))
         .route("/posts/:id", get(posts::controller::get_post_by_id))
         .route("/posts/:id", patch(posts::controller::edit_post_by_id))

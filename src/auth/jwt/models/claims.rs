@@ -5,7 +5,10 @@ use axum::{
 use jsonwebtoken::errors::ErrorKind;
 use serde::{Deserialize, Serialize};
 
-use crate::{app::models::api_error::ApiError, auth::jwt::util::decode_jwt};
+use crate::{
+    app::models::api_error::ApiError,
+    auth::jwt::{enums::roles::Roles, util::decode_jwt},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -38,5 +41,12 @@ impl Claims {
                 }
             },
         }
+    }
+
+    pub fn is_mod(&self) -> bool {
+        let Some(roles) = &self.roles
+        else { return false; };
+
+        return roles.contains(&Roles::MODERATOR.to_string());
     }
 }
