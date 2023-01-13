@@ -42,6 +42,7 @@ CREATE TABLE posts(
     media JSONB,
     generate_media_dto JSONB,
     published BOOLEAN NOT NULL DEFAULT TRUE,
+    featured BOOLEAN NOT NULL DEFAULT FALSE,
     reports_count SMALLINT NOT NULL,
     updated_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
@@ -71,6 +72,7 @@ CREATE TABLE media(
     generate_media_dto JSONB,
     seed VARCHAR(255),
     source VARCHAR(255) NOT NULL,
+    model VARCHAR(255),
     created_at BIGINT NOT NULL
 );
 

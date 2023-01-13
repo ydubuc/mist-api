@@ -3,19 +3,30 @@ use sqlx::Postgres;
 
 use crate::{
     app::models::api_error::ApiError,
-    media::{dtos::generate_media_dto::GenerateMediaDto, enums::media_generator::MediaGenerator},
+    media::{
+        dtos::generate_media_dto::GenerateMediaDto,
+        enums::{media_generator::MediaGenerator, media_model::MediaModel},
+    },
 };
 
 use super::dtos::edit_user_ink_dto::EditUserInkDto;
 
 pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) -> i64 {
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+
     let base_ink = match dto.generator.as_ref() {
-        MediaGenerator::DALLE => 40.0,
-        MediaGenerator::DREAM => 30.0,
-        MediaGenerator::MIST_STABILITY => 30.0,
+        MediaGenerator::MIST => match model.as_ref() {
+            MediaModel::OPENJOURNEY => 30.0,
+            MediaModel::STABLE_DIFFUSION_1_5 => 20.0,
+            MediaModel::STABLE_DIFFUSION_2_1 => 20.0,
+            _ => panic!("calculate_ink_cost for model {} not implemented.", model),
+        },
         MediaGenerator::STABLE_HORDE => 10.0,
-        MediaGenerator::LABML => 5.0,
-        _ => 40.0,
+        MediaGenerator::DALLE => 40.0,
+        _ => panic!(
+            "calculate_ink_cost for generator {} not implemented.",
+            dto.generator
+        ),
     };
 
     let ink_per_pixel: f64 = base_ink / (512.0 * 512.0);

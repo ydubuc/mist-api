@@ -19,6 +19,7 @@ pub struct GetPostsFilterDto {
     ))]
     pub search: Option<String>,
     pub published: Option<bool>,
+    pub featured: Option<bool>,
     pub following: Option<bool>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
@@ -57,6 +58,10 @@ impl GetPostsFilterDto {
         if self.published.is_some() {
             index += 1;
             clauses.push(["posts.published = $", &index.to_string()].concat());
+        }
+        if self.featured.is_some() {
+            index += 1;
+            clauses.push(["posts.featured = $", &index.to_string()].concat());
         }
 
         if self.following.unwrap_or(false) {

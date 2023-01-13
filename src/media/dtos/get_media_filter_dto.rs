@@ -13,6 +13,7 @@ pub struct GetMediaFilterDto {
     pub url: Option<String>,
     pub mime_type: Option<String>,
     pub source: Option<String>,
+    pub model: Option<String>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(max = 100, message = "limit must be equal or less than 100."))]
@@ -50,6 +51,10 @@ impl GetMediaFilterDto {
         if self.source.is_some() {
             index += 1;
             clauses.push(["source = $", &index.to_string()].concat());
+        }
+        if self.model.is_some() {
+            index += 1;
+            clauses.push(["model = $", &index.to_string()].concat());
         }
 
         // SORT

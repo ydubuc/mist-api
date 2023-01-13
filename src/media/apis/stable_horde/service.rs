@@ -17,13 +17,15 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
+        self, dtos::generate_media_dto::GenerateMediaDto, enums::media_model::MediaModel,
+        models::media::Media, util::backblaze,
     },
     AppState,
 };
 
 use super::{
     config::API_URL,
+    enums::stable_horde_model_version::StableHordeModelVersion,
     models::input_spec::{InputSpec, InputSpecParams},
     structs::{
         stable_horde_generate_async_response::StableHordeGenerateAsyncResponse,
@@ -94,6 +96,10 @@ async fn generate_media(
     let mut futures = Vec::with_capacity(generations.len());
 
     for generation in &generations {
+        if generation.censored {
+            continue;
+        }
+
         futures.push(upload_image_and_create_media(
             request, generation, claims, state,
         ));
@@ -130,11 +136,11 @@ async fn upload_image_and_create_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&stable_horde_generation.img)
+    let Ok(bytes) = get_bytes_with_retry(&stable_horde_generation.img).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
+            message: "Failed to get bytes".to_string()
         });
     };
 
@@ -165,6 +171,37 @@ async fn upload_image_and_create_media(
         Err(e) => {
             tracing::error!("upload_image_and_create_media failed upload_file_with_retry");
             Err(e)
+        }
+    }
+}
+
+async fn get_bytes_with_retry(url: &str) -> Result<Bytes, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async { get_bytes(url).await }).await
+}
+
+async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
+    let client = reqwest::Client::new();
+    let result = client.get(url).send().await;
+
+    match result {
+        Ok(res) => match res.bytes().await {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => {
+                tracing::error!(%e);
+                Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to get bytes from response.".to_string(),
+                })
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to get url response.".to_string(),
+            })
         }
     }
 }
@@ -370,6 +407,13 @@ async fn get_request_by_id(
 }
 
 fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+    let version = match model.as_ref() {
+        MediaModel::STABLE_DIFFUSION_1_5 => StableHordeModelVersion::STABLE_DIFFUSION,
+        MediaModel::STABLE_DIFFUSION_2_1 => StableHordeModelVersion::STABLE_DIFFUSION_2_1,
+        _ => panic!("provide_input_spec for model {} not implemented.", model),
+    };
+
     InputSpec {
         prompt: dto.prompt.to_string(),
         params: Some(InputSpecParams {
@@ -390,15 +434,23 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
         }),
         nsfw: Some(false),
         trusted_workers: Some(true),
-        censor_nsfw: Some(false),
+        censor_nsfw: Some(true),
         workers: None,
-        // workers: Some(vec!["63cc5925-beb8-4e67-91d5-8cfe305d530a".to_string()]),
-        models: Some(vec!["stable_diffusion".to_string()]),
+        models: Some(vec![version.to_string()]),
         source_image: None,
         source_processing: None,
         source_mask: None,
-        r2: Some(false),
+        r2: Some(true),
     }
+}
+
+pub fn is_valid_model(model: &str) -> bool {
+    let valid_models: [&str; 2] = [
+        MediaModel::STABLE_DIFFUSION_1_5,
+        MediaModel::STABLE_DIFFUSION_2_1,
+    ];
+
+    return valid_models.contains(&model);
 }
 
 pub fn is_valid_size(width: &u16, height: &u16) -> bool {
