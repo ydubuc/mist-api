@@ -414,7 +414,10 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
             version = ReplicateModelVersion::OPENJOURNEY.to_string();
 
             serde_json::to_value(InputSpecOpenjourney {
-                prompt: dto.prompt.to_string(),
+                prompt: match dto.prompt.starts_with("mdjrny-v4 style") {
+                    true => dto.prompt.to_string(),
+                    false => format!("mdjrny-v4 style {}", dto.prompt),
+                },
                 width: dto.width,
                 height: dto.height,
                 num_outputs: dto.number,
