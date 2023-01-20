@@ -95,6 +95,9 @@ pub async fn get_posts(
     if let Some(user_id) = &dto.user_id {
         sqlx = sqlx.bind(user_id)
     }
+    if let Some(model) = &dto.model {
+        sqlx = sqlx.bind(model);
+    }
     if let Some(search) = &dto.search {
         sqlx = sqlx.bind(["%", search, "%"].concat())
     }

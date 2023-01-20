@@ -17,6 +17,7 @@ pub struct GetPostsFilterDto {
         max = 512,
         message = "search must be between 3 and 512 characters."
     ))]
+    pub model: Option<String>,
     pub search: Option<String>,
     pub published: Option<bool>,
     pub featured: Option<bool>,
@@ -50,6 +51,10 @@ impl GetPostsFilterDto {
         if self.user_id.is_some() {
             index += 1;
             clauses.push(["posts.user_id = $", &index.to_string()].concat());
+        }
+        if self.model.is_some() {
+            index += 1;
+            clauses.push(["posts.generate_media_dto->>'model' = $", &index.to_string()].concat());
         }
         if self.search.is_some() {
             index += 1;
