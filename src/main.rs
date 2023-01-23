@@ -159,6 +159,11 @@ async fn main() {
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // MEDIA
         .route("/media/generate", post(media::controller::generate_media))
+        // MEDIA/MODAL
+        .route(
+            "/media/modal/webhook",
+            post(media::modal::webhook::receive_webhook),
+        )
         // .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))
         .route("/media/:id", get(media::controller::get_media_by_id))
