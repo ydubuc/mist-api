@@ -10,7 +10,6 @@ use crate::{
         self, errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
-    auth::jwt::models::claims::Claims,
     generate_media_requests::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
@@ -32,14 +31,13 @@ use super::{
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
-    claims: Claims,
     state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request, &claims, &state).await {
+        match generate_media(&generate_media_request, &state).await {
             Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
@@ -54,7 +52,6 @@ pub fn spawn_generate_media_task(
             &generate_media_request,
             &status,
             &media,
-            &claims,
             &state,
         )
         .await
@@ -63,7 +60,6 @@ pub fn spawn_generate_media_task(
 
 async fn generate_media(
     request: &GenerateMediaRequest,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let labml_api_key = &state.envy.labml_api_key;
@@ -85,7 +81,7 @@ async fn generate_media(
     let mut futures = Vec::with_capacity(response.images.len());
 
     for image in &response.images {
-        futures.push(upload_image_and_create_media(request, image, claims, state));
+        futures.push(upload_image_and_create_media(request, image, state));
     }
 
     let results = futures::future::join_all(futures).await;
@@ -116,7 +112,6 @@ async fn generate_media(
 async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
     labml_image: &LabmlImage,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
     let Ok(bytes) = app::util::reqwest::get_bytes(&labml_image.image).await
@@ -133,7 +128,7 @@ async fn upload_image_and_create_media(
         data: bytes,
     };
 
-    let sub_folder = Some(["media/", &claims.id].concat());
+    let sub_folder = Some(["media/", &request.user_id].concat());
     match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
     {
         Ok(response) => {
@@ -144,7 +139,6 @@ async fn upload_image_and_create_media(
                 request,
                 None,
                 &response,
-                claims,
                 b2_download_url,
             ))
         }

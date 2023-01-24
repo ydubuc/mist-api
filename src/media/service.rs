@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, replicate, stable_horde},
+    apis::{dalle, modal, replicate, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::{media_generator::MediaGenerator, media_model::MediaModel},
     errors::MediaApiError,
@@ -63,28 +63,26 @@ pub async fn generate_media(
     };
 
     let req = generate_media_request.clone();
-    let claims = claims.clone();
     let state = state.clone();
 
     let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
     match dto.generator.as_ref() {
         MediaGenerator::MIST => match model.as_ref() {
-            MediaModel::OPENJOURNEY => {
-                replicate::service::spawn_generate_media_task(req, claims, state)
-            }
+            MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
             MediaModel::STABLE_DIFFUSION_1_5 => {
-                replicate::service::spawn_generate_media_task(req, claims, state)
+                // replicate::service::spawn_generate_media_task(req, state)
+                modal::service::spawn_generate_media_task(req, state)
             }
             MediaModel::STABLE_DIFFUSION_2_1 => {
-                replicate::service::spawn_generate_media_task(req, claims, state)
+                replicate::service::spawn_generate_media_task(req, state)
             }
             _ => return Err(DefaultApiError::InternalServerError.value()),
         },
         MediaGenerator::STABLE_HORDE => {
-            stable_horde::service::spawn_generate_media_task(req, claims, state)
+            stable_horde::service::spawn_generate_media_task(req, state)
         }
-        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, claims, state),
+        MediaGenerator::DALLE => dalle::service::spawn_generate_media_task(req, state),
         _ => return Err(DefaultApiError::InternalServerError.value()),
     }
 
@@ -225,13 +223,12 @@ pub async fn on_generate_media_completion_with_retry(
     generate_media_request: &GenerateMediaRequest,
     status: &GenerateMediaRequestStatus,
     media: &Option<Vec<Media>>,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(6);
 
     Retry::spawn(retry_strategy, || async {
-        on_generate_media_completion(generate_media_request, status, media, claims, state).await
+        on_generate_media_completion(generate_media_request, status, media, state).await
     })
     .await
 }
@@ -240,9 +237,10 @@ async fn on_generate_media_completion(
     generate_media_request: &GenerateMediaRequest,
     status: &GenerateMediaRequestStatus,
     media: &Option<Vec<Media>>,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
+    let uid = &generate_media_request.user_id;
+
     let Ok(mut tx) = state.pool.begin().await
     else {
         tracing::warn!("on_generate_media_completion failed to begin pool transaction");
@@ -301,7 +299,7 @@ async fn on_generate_media_completion(
     };
 
     let edit_user_ink_by_id_result =
-        users::util::ink::ink::edit_user_ink_by_id(&claims.id, &edit_user_ink_dto, &mut tx).await;
+        users::util::ink::ink::edit_user_ink_by_id(uid, &edit_user_ink_dto, &mut tx).await;
 
     if edit_user_ink_by_id_result.is_err() {
         let rollback_result = tx.rollback().await;
@@ -335,7 +333,7 @@ async fn on_generate_media_completion(
                 "Mist".to_string(),
                 "Your images are ready!".to_string(),
                 Some(format!("post_view {}", post.id)),
-                claims.id.to_string(),
+                uid.to_string(),
                 state.clone(),
             );
 
