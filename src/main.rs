@@ -34,6 +34,7 @@ mod media;
 mod posts;
 mod transactions;
 mod users;
+mod webhooks;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -159,10 +160,10 @@ async fn main() {
         .route("/posts/:id", delete(posts::controller::delete_post_by_id))
         // MEDIA
         .route("/media/generate", post(media::controller::generate_media))
-        // MEDIA/MODAL
+        // WEBHOOKS
         .route(
-            "/media/modal/webhook",
-            post(media::modal::webhook::receive_webhook),
+            "/webhooks/modal",
+            post(webhooks::modal::webhook::receive_webhook),
         )
         // .route("/media/import", post(media::controller::import_media))
         .route("/media", get(media::controller::get_media))

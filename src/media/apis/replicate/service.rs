@@ -403,23 +403,6 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     let version: String;
 
     let input: Value = match model.as_ref() {
-        MediaModel::OPENJOURNEY => {
-            version = ReplicateModelVersion::OPENJOURNEY.to_string();
-
-            serde_json::to_value(InputSpecOpenjourney {
-                prompt: match dto.prompt.starts_with("mdjrny-v4 style") {
-                    true => dto.prompt.to_string(),
-                    false => format!("mdjrny-v4 style {}", dto.prompt),
-                },
-                width: dto.width,
-                height: dto.height,
-                num_outputs: dto.number,
-                num_inference_steps: 50,
-                guidance_scale: dto.cfg_scale.unwrap_or(8),
-                seed: None,
-            })
-            .unwrap()
-        }
         MediaModel::STABLE_DIFFUSION_1_5 => {
             version = ReplicateModelVersion::STABLE_DIFFUSION_1_5.to_string();
 
@@ -448,6 +431,23 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 num_inference_steps: 50,
                 guidance_scale: dto.cfg_scale.unwrap_or(8),
                 scheduler: Some("K_EULER".to_string()),
+                seed: None,
+            })
+            .unwrap()
+        }
+        MediaModel::OPENJOURNEY => {
+            version = ReplicateModelVersion::OPENJOURNEY.to_string();
+
+            serde_json::to_value(InputSpecOpenjourney {
+                prompt: match dto.prompt.starts_with("mdjrny-v4 style") {
+                    true => dto.prompt.to_string(),
+                    false => format!("mdjrny-v4 style {}", dto.prompt),
+                },
+                width: dto.width,
+                height: dto.height,
+                num_outputs: dto.number,
+                num_inference_steps: 50,
+                guidance_scale: dto.cfg_scale.unwrap_or(8),
                 seed: None,
             })
             .unwrap()

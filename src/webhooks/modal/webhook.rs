@@ -13,8 +13,8 @@ use crate::{
         errors::DefaultApiError, models::api_error::ApiError,
         structs::json_from_request::JsonFromRequest,
     },
-    generate_media_requests,
-    media::{self, modal::dtos::receive_webhook_dto::ReceiveWebhookDto},
+    generate_media_requests, media,
+    webhooks::modal::dtos::receive_webhook_dto::ReceiveWebhookDto,
     AppState,
 };
 

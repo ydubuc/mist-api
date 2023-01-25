@@ -16,9 +16,9 @@ pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) 
 
     let base_ink = match dto.generator.as_ref() {
         MediaGenerator::MIST => match model.as_ref() {
-            MediaModel::OPENJOURNEY => 30.0,
             MediaModel::STABLE_DIFFUSION_1_5 => 20.0,
             MediaModel::STABLE_DIFFUSION_2_1 => 20.0,
+            MediaModel::OPENJOURNEY => 30.0,
             _ => panic!("calculate_ink_cost for model {} not implemented.", model),
         },
         MediaGenerator::STABLE_HORDE => 10.0,
