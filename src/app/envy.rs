@@ -28,4 +28,6 @@ pub struct Envy {
     pub mail_host: String,
     pub mail_user: String,
     pub mail_pass: String,
+
+    pub railway_static_url: String,
 }

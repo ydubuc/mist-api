@@ -71,8 +71,8 @@ pub async fn generate_media(
         MediaGenerator::MIST => match model.as_ref() {
             MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
             MediaModel::STABLE_DIFFUSION_1_5 => {
-                // replicate::service::spawn_generate_media_task(req, state)
-                modal::service::spawn_generate_media_task(req, state)
+                replicate::service::spawn_generate_media_task(req, state)
+                // modal::service::spawn_generate_media_task(req, state)
             }
             MediaModel::STABLE_DIFFUSION_2_1 => {
                 replicate::service::spawn_generate_media_task(req, state)

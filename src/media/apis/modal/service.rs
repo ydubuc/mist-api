@@ -32,11 +32,7 @@ pub fn spawn_generate_media_task(
     state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
-        let _ = call_modal_entrypoint_with_retry(
-            &generate_media_request,
-            &state.envy.modal_webhook_secret,
-        )
-        .await;
+        let _ = call_modal_entrypoint_with_retry(&generate_media_request, &state).await;
     });
 }
 
@@ -158,21 +154,22 @@ async fn upload_image_and_create_media(
 
 async fn call_modal_entrypoint_with_retry(
     request: &GenerateMediaRequest,
-    modal_webhook_secret: &str,
+    state: &Arc<AppState>,
 ) -> Result<ModalEntrypointResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        call_modal_entrypoint(request, modal_webhook_secret).await
+        call_modal_entrypoint(request, state).await
     })
     .await
 }
 
 async fn call_modal_entrypoint(
     request: &GenerateMediaRequest,
-    modal_webhook_secret: &str,
+    state: &Arc<AppState>,
 ) -> Result<ModalEntrypointResponse, ApiError> {
-    let input_spec = provide_input_spec(request);
+    let modal_webhook_secret = &state.envy.modal_webhook_secret;
+    let input_spec = provide_input_spec(request, state);
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -210,9 +207,11 @@ async fn call_modal_entrypoint(
     }
 }
 
-fn provide_input_spec(request: &GenerateMediaRequest) -> Value {
+fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> Value {
     let dto = &request.generate_media_dto;
     let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
+
+    tracing::debug!("{}", state.envy.railway_static_url);
 
     let input: Value = match model.as_ref() {
         MediaModel::STABLE_DIFFUSION_1_5 => serde_json::to_value(InputStableDiffusion15 {
@@ -224,8 +223,7 @@ fn provide_input_spec(request: &GenerateMediaRequest) -> Value {
             number: dto.number,
             steps: 50,
             cfg_scale: dto.cfg_scale.unwrap_or(8),
-            callback_url: "https://mist-api-v1-w1-development.up.railway.app/media/modal/webhook"
-                .to_string(),
+            callback_url: format!("{}/media/modal/webhook", state.envy.railway_static_url),
         })
         .unwrap(),
         _ => panic!("provide_input_spec for model {} not implemented.", model),
