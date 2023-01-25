@@ -45,7 +45,7 @@ pub struct GenerateMediaDto {
 impl GenerateMediaDto {
     pub fn default_model(&self) -> &str {
         match self.generator.as_ref() {
-            MediaGenerator::MIST => MediaModel::OPENJOURNEY,
+            MediaGenerator::MIST => MediaModel::STABLE_DIFFUSION_1_5,
             MediaGenerator::STABLE_HORDE => MediaModel::STABLE_DIFFUSION_1_5,
             MediaGenerator::DALLE => MediaModel::DALLE,
             _ => panic!("default_model for generator not implemented."),

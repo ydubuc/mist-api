@@ -12,7 +12,6 @@ use crate::{
         errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
-    auth::jwt::models::claims::Claims,
     generate_media_requests::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
@@ -37,14 +36,13 @@ use super::{
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
-    claims: Claims,
     state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request, &claims, &state).await {
+        match generate_media(&generate_media_request, &state).await {
             Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
                 media = Some(_media);
@@ -59,7 +57,6 @@ pub fn spawn_generate_media_task(
             &generate_media_request,
             &status,
             &media,
-            &claims,
             &state,
         )
         .await
@@ -68,7 +65,6 @@ pub fn spawn_generate_media_task(
 
 async fn generate_media(
     request: &GenerateMediaRequest,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
     let replicate_api_key = &state.envy.replicate_api_key;
@@ -101,7 +97,6 @@ async fn generate_media(
                 Some(seed) => Some(seed),
                 None => None,
             },
-            claims,
             state,
         ));
     }
@@ -151,7 +146,6 @@ async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
     replicate_output_url: &str,
     seed: Option<&str>,
-    claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
     let Ok(bytes) = get_bytes_with_retry(replicate_output_url, &state.envy.replicate_api_key).await
@@ -171,7 +165,7 @@ async fn upload_image_and_create_media(
         data: bytes,
     };
 
-    let sub_folder = Some(["media/", &claims.id].concat());
+    let sub_folder = Some(["media/", &request.user_id].concat());
     match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
     {
         Ok(response) => {
@@ -182,7 +176,6 @@ async fn upload_image_and_create_media(
                 request,
                 seed,
                 &response,
-                claims,
                 b2_download_url,
             ))
         }
@@ -410,23 +403,6 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     let version: String;
 
     let input: Value = match model.as_ref() {
-        MediaModel::OPENJOURNEY => {
-            version = ReplicateModelVersion::OPENJOURNEY.to_string();
-
-            serde_json::to_value(InputSpecOpenjourney {
-                prompt: match dto.prompt.starts_with("mdjrny-v4 style") {
-                    true => dto.prompt.to_string(),
-                    false => format!("mdjrny-v4 style {}", dto.prompt),
-                },
-                width: dto.width,
-                height: dto.height,
-                num_outputs: dto.number,
-                num_inference_steps: 50,
-                guidance_scale: dto.cfg_scale.unwrap_or(8),
-                seed: None,
-            })
-            .unwrap()
-        }
         MediaModel::STABLE_DIFFUSION_1_5 => {
             version = ReplicateModelVersion::STABLE_DIFFUSION_1_5.to_string();
 
@@ -455,6 +431,23 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 num_inference_steps: 50,
                 guidance_scale: dto.cfg_scale.unwrap_or(8),
                 scheduler: Some("K_EULER".to_string()),
+                seed: None,
+            })
+            .unwrap()
+        }
+        MediaModel::OPENJOURNEY => {
+            version = ReplicateModelVersion::OPENJOURNEY.to_string();
+
+            serde_json::to_value(InputSpecOpenjourney {
+                prompt: match dto.prompt.starts_with("mdjrny-v4 style") {
+                    true => dto.prompt.to_string(),
+                    false => format!("mdjrny-v4 style {}", dto.prompt),
+                },
+                width: dto.width,
+                height: dto.height,
+                num_outputs: dto.number,
+                num_inference_steps: 50,
+                guidance_scale: dto.cfg_scale.unwrap_or(8),
                 seed: None,
             })
             .unwrap()

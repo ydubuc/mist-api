@@ -2,9 +2,9 @@ use crate::media::enums::media_model::MediaModel;
 
 pub fn is_valid_model(model: &str) -> bool {
     let valid_models: [&str; 3] = [
-        MediaModel::OPENJOURNEY,
         MediaModel::STABLE_DIFFUSION_1_5,
         MediaModel::STABLE_DIFFUSION_2_1,
+        MediaModel::OPENJOURNEY,
     ];
 
     return valid_models.contains(&model);
@@ -32,9 +32,9 @@ pub fn is_valid_size(width: &u16, height: &u16, _model: &str) -> bool {
 
 pub fn is_valid_number(number: u8, model: &str) -> bool {
     match model {
-        MediaModel::OPENJOURNEY => number == 1 || number == 4,
         MediaModel::STABLE_DIFFUSION_1_5 => number > 0 && number < 5,
         MediaModel::STABLE_DIFFUSION_2_1 => number > 0 && number < 5,
+        MediaModel::OPENJOURNEY => number == 1 || number == 4,
         _ => false,
     }
 }
