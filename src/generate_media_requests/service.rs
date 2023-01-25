@@ -14,7 +14,7 @@ use crate::{
 use super::{
     dtos::get_generate_media_requests_filter_dto::GetGenerateMediaRequestsFilterDto,
     enums::generate_media_request_status::GenerateMediaRequestStatus,
-    models::generate_media_request::GenerateMediaRequest,
+    errors::GenerateMediaRequestsApiError, models::generate_media_request::GenerateMediaRequest,
 };
 
 pub async fn create_request(
@@ -94,6 +94,32 @@ pub async fn get_generate_media_requests(
 
     match sqlx.fetch_all(pool).await {
         Ok(generate_media_requests) => Ok(generate_media_requests),
+        Err(e) => {
+            tracing::error!(%e);
+            Err(DefaultApiError::InternalServerError.value())
+        }
+    }
+}
+
+pub async fn get_generate_media_request_by_id_as_admin(
+    id: &str,
+    pool: &PgPool,
+) -> Result<GenerateMediaRequest, ApiError> {
+    let sqlx_result = sqlx::query_as::<_, GenerateMediaRequest>(
+        "
+        SELECT * FROM generate_media_requests
+        WHERE generate_media_requests.id = $1
+        ",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await;
+
+    match sqlx_result {
+        Ok(request) => match request {
+            Some(request) => Ok(request),
+            None => Err(GenerateMediaRequestsApiError::RequestNotFound.value()),
+        },
         Err(e) => {
             tracing::error!(%e);
             Err(DefaultApiError::InternalServerError.value())

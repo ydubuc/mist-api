@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use reqwest::{header, StatusCode};
+use serde_json::Value;
+use tokio_retry::{strategy::FixedInterval, Retry};
 use uuid::Uuid;
 
 use crate::{
@@ -13,33 +15,38 @@ use crate::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    media::{
-        self, dtos::generate_media_dto::GenerateMediaDto, models::media::Media, util::backblaze,
-    },
+    media::{self, enums::media_model::MediaModel, models::media::Media, util::backblaze},
+    webhooks::modal::dtos::receive_webhook_dto::ReceiveWebhookDto,
     AppState,
 };
 
 use super::{
-    config::API_URL,
-    models::input_spec::InputSpec,
-    structs::mist_stability_generate_images_response::{
-        MistStabilityGenerateImagesResponse, MistStabilityImageData,
-    },
+    config::API_URL, models::input_spec_sd15::InputStableDiffusion15,
+    structs::modal_entrypoint_response::ModalEntrypointResponse,
 };
 
 pub fn spawn_generate_media_task(
     generate_media_request: GenerateMediaRequest,
-    input_media: Option<Media>,
+    state: Arc<AppState>,
+) {
+    tokio::spawn(async move {
+        let _ = call_modal_entrypoint_with_retry(&generate_media_request, &state).await;
+    });
+}
+
+pub fn on_receive_webhook(
+    generate_media_request: GenerateMediaRequest,
+    webhook_dto: ReceiveWebhookDto,
     state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
         let status: GenerateMediaRequestStatus;
         let media: Option<Vec<Media>>;
 
-        match generate_media(&generate_media_request, &input_media, &state).await {
-            Ok(m) => {
+        match generate_media(&generate_media_request, &webhook_dto, &state).await {
+            Ok(_media) => {
                 status = GenerateMediaRequestStatus::Completed;
-                media = Some(m);
+                media = Some(_media);
             }
             Err(_) => {
                 status = GenerateMediaRequestStatus::Error;
@@ -59,27 +66,24 @@ pub fn spawn_generate_media_task(
 
 async fn generate_media(
     request: &GenerateMediaRequest,
-    input_media: &Option<Media>,
+    webhook_dto: &ReceiveWebhookDto,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
-    let mist_stability_api_key = &state.envy.mist_stability_api_key;
-    let dto = &request.generate_media_dto;
-
-    let mist_stability_generate_images_result =
-        mist_stability_generate_images(dto, input_media, mist_stability_api_key).await;
-    let Ok(mist_response) = mist_stability_generate_images_result
-    else {
-        return Err(mist_stability_generate_images_result.unwrap_err());
+    if webhook_dto.images.len() < 1 {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Modal generated no images.".to_string(),
+        });
     };
 
-    let mut futures = Vec::with_capacity(mist_response.data.len());
+    let mut futures = Vec::with_capacity(webhook_dto.images.len());
 
-    for data in &mist_response.data {
-        futures.push(upload_image_and_create_media(request, data, state));
+    for image in &webhook_dto.images {
+        futures.push(upload_image_and_create_media(request, image, state));
     }
 
     let results = futures::future::join_all(futures).await;
-    let mut media = Vec::with_capacity(mist_response.data.len());
+    let mut media = Vec::with_capacity(webhook_dto.images.len());
 
     for result in results {
         if result.is_ok() {
@@ -105,10 +109,10 @@ async fn generate_media(
 
 async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
-    mist_stability_image_data: &MistStabilityImageData,
+    base64_image: &str,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&mist_stability_image_data.base64)
+    let Ok(bytes) = base64::decode(&base64_image)
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -121,7 +125,7 @@ async fn upload_image_and_create_media(
         id: uuid.to_string(),
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
-        mime_type: "image/webp".to_string(),
+        mime_type: mime::IMAGE_PNG.to_string(),
         data: Bytes::from(bytes),
     };
 
@@ -134,7 +138,7 @@ async fn upload_image_and_create_media(
             Ok(Media::from_request(
                 &file_properties.id,
                 request,
-                Some(&mist_stability_image_data.seed),
+                None,
                 &response,
                 b2_download_url,
             ))
@@ -146,45 +150,35 @@ async fn upload_image_and_create_media(
     }
 }
 
-// async fn mist_stability_generate_images_with_retry(
-//     dto: &GenerateMediaDto,
-//     state: &Arc<AppState>,
-// ) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
-//     let retry_strategy = FixedInterval::from_millis(10000).take(3);
+async fn call_modal_entrypoint_with_retry(
+    request: &GenerateMediaRequest,
+    state: &Arc<AppState>,
+) -> Result<ModalEntrypointResponse, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
-//     Retry::spawn(retry_strategy, || async {
-//         mist_stability_generate_images(dto, state).await
-//     })
-//     .await
-// }
+    Retry::spawn(retry_strategy, || async {
+        call_modal_entrypoint(request, state).await
+    })
+    .await
+}
 
-async fn mist_stability_generate_images(
-    dto: &GenerateMediaDto,
-    input_media: &Option<Media>,
-    mist_stability_api_key: &str,
-) -> Result<MistStabilityGenerateImagesResponse, ApiError> {
-    let input_spec = provide_input_spec(
-        dto,
-        match input_media {
-            Some(media) => Some(media.url.to_string()),
-            None => None,
-        },
-    );
+async fn call_modal_entrypoint(
+    request: &GenerateMediaRequest,
+    state: &Arc<AppState>,
+) -> Result<ModalEntrypointResponse, ApiError> {
+    let modal_webhook_secret = &state.envy.modal_webhook_secret;
+    let input_spec = provide_input_spec(request, state);
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert(
         "Authorization",
-        ["Bearer ", mist_stability_api_key]
-            .concat()
-            .parse()
-            .unwrap(),
+        format!("Bearer {}", modal_webhook_secret).parse().unwrap(),
     );
 
     let client = reqwest::Client::new();
-    let url = format!("{}/images/generate", API_URL);
     let result = client
-        .post(url)
+        .post(API_URL)
         .headers(headers)
         .json(&input_spec)
         .send()
@@ -193,56 +187,45 @@ async fn mist_stability_generate_images(
     match result {
         Ok(res) => match res.text().await {
             Ok(text) => match serde_json::from_str(&text) {
-                Ok(mist_stability_generate_images_response) => {
-                    Ok(mist_stability_generate_images_response)
-                }
+                Ok(modal_entrypoint_response) => Ok(modal_entrypoint_response),
                 Err(_) => {
-                    tracing::error!("mist_stability_generate_images (1): {:?}", text);
+                    tracing::warn!("call_modal_entrypoint (1): {:?}", text);
                     Err(DefaultApiError::InternalServerError.value())
                 }
             },
             Err(e) => {
-                tracing::error!("mist_stability_generate_images (2): {:?}", e);
+                tracing::warn!("call_modal_entrypoint (2): {:?}", e);
                 Err(DefaultApiError::InternalServerError.value())
             }
         },
         Err(e) => {
-            tracing::error!("mist_stability_generate_images (3): {:?}", e);
+            tracing::warn!("call_modal_entrypoint (3): {:?}", e);
             Err(DefaultApiError::InternalServerError.value())
         }
     }
 }
 
-fn provide_input_spec(dto: &GenerateMediaDto, input_image_url: Option<String>) -> InputSpec {
-    InputSpec {
-        prompt: dto.prompt.to_string(),
-        width: dto.width,
-        height: dto.height,
-        number: dto.number,
+fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> Value {
+    let dto = &request.generate_media_dto;
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
-        steps: Some(50),
-        cfg_scale: dto.cfg_scale,
-        input_image_url,
-        engine: Some("stable-diffusion-512-v2-1".to_string()),
-    }
-}
+    tracing::debug!("{}", state.envy.railway_static_url);
 
-pub fn is_valid_size(width: &u16, height: &u16) -> bool {
-    let valid_widths: [u16; 3] = [512, 768, 1024];
+    let input: Value = match model.as_ref() {
+        MediaModel::STABLE_DIFFUSION_1_5 => serde_json::to_value(InputStableDiffusion15 {
+            request_id: request.id.to_string(),
+            prompt: dto.prompt.to_string(),
+            negative_prompt: dto.negative_prompt.clone(),
+            width: dto.width,
+            height: dto.height,
+            number: dto.number,
+            steps: 50,
+            cfg_scale: dto.cfg_scale.unwrap_or(8),
+            callback_url: format!("{}/webhooks/modal", state.envy.railway_static_url),
+        })
+        .unwrap(),
+        _ => panic!("provide_input_spec for model {} not implemented.", model),
+    };
 
-    if !valid_widths.contains(width) {
-        return false;
-    }
-
-    let valid_heights: [u16; 3] = [512, 768, 1024];
-
-    if !valid_heights.contains(height) {
-        return false;
-    }
-
-    return true;
-}
-
-pub fn is_valid_number(number: u8) -> bool {
-    return (number > 0) && (number < 9);
+    input
 }

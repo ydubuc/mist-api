@@ -41,7 +41,6 @@ impl Media {
         request: &GenerateMediaRequest,
         seed: Option<&str>,
         b2_upload_responses: &BackblazeUploadFileResponse,
-        claims: &Claims,
         b2_download_url: &str,
     ) -> Media {
         let dto = &request.generate_media_dto.0;
@@ -54,7 +53,7 @@ impl Media {
 
         return Media {
             id: id.to_string(),
-            user_id: claims.id.to_string(),
+            user_id: request.user_id.to_string(),
             file_id: b2_upload_responses.file_id.to_string(),
             post_id: Some(request.id.to_string()),
             url: download_url,

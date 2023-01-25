@@ -17,6 +17,7 @@ pub struct Envy {
     pub mist_stability_api_key: String,
     pub labml_api_key: String,
     pub replicate_api_key: String,
+    pub modal_webhook_secret: String,
 
     pub backblaze_key_id: String,
     pub backblaze_app_key: String,
@@ -27,4 +28,6 @@ pub struct Envy {
     pub mail_host: String,
     pub mail_user: String,
     pub mail_pass: String,
+
+    pub railway_static_url: String,
 }
