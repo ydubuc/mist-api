@@ -13,7 +13,6 @@ use crate::{
         errors::DefaultApiError, models::api_error::ApiError,
         util::multipart::models::file_properties::FileProperties,
     },
-    auth::jwt::models::claims::Claims,
     generate_media_requests::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
