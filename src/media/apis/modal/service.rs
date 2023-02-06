@@ -30,7 +30,15 @@ pub fn spawn_generate_media_task(
     state: Arc<AppState>,
 ) {
     tokio::spawn(async move {
-        let _ = call_modal_entrypoint_with_retry(&generate_media_request, &state).await;
+        match call_modal_entrypoint_with_retry(&generate_media_request, &state).await {
+            Err(e) => {
+                tracing::error!(
+                    "spawn_generate_media_task failed call_modal_entrypoint_with_retry: {:?}",
+                    e
+                );
+            }
+            _ => {}
+        }
     });
 }
 
