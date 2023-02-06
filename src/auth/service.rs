@@ -1,8 +1,10 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use axum::http::StatusCode;
 use jsonwebtoken::errors::ErrorKind;
+use rand::Rng;
 use sqlx::PgPool;
+use tokio::time::sleep;
 
 use crate::{
     app::{errors::DefaultApiError, models::api_error::ApiError, util::hasher},
@@ -31,6 +33,7 @@ use super::{
         request_email_update_dto::RequestEmailUpdateDto,
         request_password_update_dto::RequestPasswordUpdateDto,
     },
+    errors::AuthApiError,
     jwt::{
         enums::pepper_type::PepperType,
         models::claims::Claims,
@@ -57,23 +60,20 @@ pub async fn register(dto: &RegisterDto, state: &Arc<AppState>) -> Result<Access
 pub async fn login(dto: &LoginDto, state: &Arc<AppState>) -> Result<AccessInfo, ApiError> {
     match users::service::get_user_by_login_dto_as_admin(dto, &state.pool).await {
         Ok(user) => {
+            let sleep_duration = rand::thread_rng().gen_range(0.2..1.0);
+            sleep(Duration::from_secs_f32(sleep_duration)).await;
+
             if user.delete_pending {
-                return Err(ApiError {
-                    code: StatusCode::UNAUTHORIZED,
-                    message: "This user is being deleted.".to_string(),
-                });
+                return Err(AuthApiError::BadLogin.value());
             }
 
             let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
             else {
-                return Err(DefaultApiError::InternalServerError.value());
+                return Err(AuthApiError::BadLogin.value());
             };
 
             if !matches {
-                return Err(ApiError {
-                    code: StatusCode::UNAUTHORIZED,
-                    message: "Invalid password.".to_string(),
-                });
+                return Err(AuthApiError::BadLogin.value());
             }
 
             match devices::service::create_device_as_admin(&user, &state.pool).await {
@@ -85,7 +85,16 @@ pub async fn login(dto: &LoginDto, state: &Arc<AppState>) -> Result<AccessInfo, 
                 Err(e) => Err(e),
             }
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            let sleep_duration = rand::thread_rng().gen_range(0.2..1.0);
+            sleep(Duration::from_secs_f32(sleep_duration)).await;
+
+            if e.code == StatusCode::NOT_FOUND {
+                return Err(AuthApiError::BadLogin.value());
+            } else {
+                Err(e)
+            }
+        }
     }
 }
 
