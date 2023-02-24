@@ -24,6 +24,7 @@ pub async fn receive_webhook(
     TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
     JsonFromRequest(dto): JsonFromRequest<ReceiveWebhookDto>,
 ) -> Result<(), ApiError> {
+    tracing::debug!("receive_webhook: {:?}", dto);
     if authorization.0.token() != state.envy.modal_webhook_secret {
         return Err(DefaultApiError::PermissionDenied.value());
     }
