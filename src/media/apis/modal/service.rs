@@ -15,7 +15,7 @@ use crate::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    media::{self, enums::media_model::MediaModel, models::media::Media, util::backblaze},
+    media::{self, models::media::Media, util::backblaze},
     webhooks::modal::dtos::receive_webhook_dto::ReceiveWebhookDto,
     AppState,
 };
