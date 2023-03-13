@@ -229,7 +229,7 @@ fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> 
         number: dto.number,
         steps: 50,
         cfg_scale: dto.cfg_scale.unwrap_or(8),
-        callback_url: format!("{}/webhooks/modal", state.envy.railway_static_url),
+        callback_url: format!("https://{}/webhooks/modal", state.envy.railway_static_url),
     })
     .unwrap();
 
