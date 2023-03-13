@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    config::API_URL, models::input_spec_sd15::InputStableDiffusion15,
+    config::api_url, models::input_spec_sd15::InputStableDiffusion15,
     structs::modal_entrypoint_response::ModalEntrypointResponse,
 };
 
@@ -176,6 +176,8 @@ async fn call_modal_entrypoint(
 ) -> Result<ModalEntrypointResponse, ApiError> {
     let modal_webhook_secret = &state.envy.modal_webhook_secret;
     let input_spec = provide_input_spec(request, state);
+    let dto = &request.generate_media_dto;
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -186,7 +188,7 @@ async fn call_modal_entrypoint(
 
     let client = reqwest::Client::new();
     let result = client
-        .post(API_URL)
+        .post(api_url(&model))
         .headers(headers)
         .json(&input_spec)
         .send()
@@ -215,25 +217,21 @@ async fn call_modal_entrypoint(
 
 fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> Value {
     let dto = &request.generate_media_dto;
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
     tracing::debug!("{}", state.envy.railway_static_url);
 
-    let input: Value = match model.as_ref() {
-        MediaModel::STABLE_DIFFUSION_1_5 => serde_json::to_value(InputStableDiffusion15 {
-            request_id: request.id.to_string(),
-            prompt: dto.prompt.to_string(),
-            negative_prompt: dto.negative_prompt.clone(),
-            width: dto.width,
-            height: dto.height,
-            number: dto.number,
-            steps: 50,
-            cfg_scale: dto.cfg_scale.unwrap_or(8),
-            callback_url: format!("{}/webhooks/modal", state.envy.railway_static_url),
-        })
-        .unwrap(),
-        _ => panic!("provide_input_spec for model {} not implemented.", model),
-    };
+    let input: Value = serde_json::to_value(InputStableDiffusion15 {
+        request_id: request.id.to_string(),
+        prompt: dto.prompt.to_string(),
+        negative_prompt: dto.negative_prompt.clone(),
+        width: dto.width,
+        height: dto.height,
+        number: dto.number,
+        steps: 50,
+        cfg_scale: dto.cfg_scale.unwrap_or(8),
+        callback_url: format!("{}/webhooks/modal", state.envy.railway_static_url),
+    })
+    .unwrap();
 
     input
 }
