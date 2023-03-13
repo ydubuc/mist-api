@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, replicate, stable_horde},
+    apis::{dalle, modal, replicate, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
     enums::{media_generator::MediaGenerator, media_model::MediaModel},
     errors::MediaApiError,
@@ -76,7 +76,8 @@ pub async fn generate_media(
             MediaModel::STABLE_DIFFUSION_2_1 => {
                 replicate::service::spawn_generate_media_task(req, state)
             }
-            MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
+            // MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
+            MediaModel::OPENJOURNEY => modal::service::spawn_generate_media_task(req, state),
             _ => return Err(DefaultApiError::InternalServerError.value()),
         },
         MediaGenerator::STABLE_HORDE => {
