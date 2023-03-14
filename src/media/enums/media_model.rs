@@ -8,5 +8,6 @@ impl MediaModel {
     pub const OPENJOURNEY_2: &str = "openjourney_2";
     pub const DREAMSHAPER: &str = "dreamshaper";
     pub const DREAMLIKE_DIFFUSION_1: &str = "dreamlike_diffusion_1";
+    pub const ARCANE_DIFFUSION: &str = "arcane_diffusion";
     pub const DALLE: &str = "dalle";
 }

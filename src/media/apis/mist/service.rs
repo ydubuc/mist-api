@@ -1,13 +1,14 @@
 use crate::media::enums::media_model::MediaModel;
 
 pub fn is_valid_model(model: &str) -> bool {
-    let valid_models: [&str; 6] = [
+    let valid_models: [&str; 7] = [
         MediaModel::STABLE_DIFFUSION_1_5,
         MediaModel::STABLE_DIFFUSION_2_1,
         MediaModel::OPENJOURNEY,
         MediaModel::OPENJOURNEY_2,
         MediaModel::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1,
+        MediaModel::ARCANE_DIFFUSION,
     ];
 
     return valid_models.contains(&model);

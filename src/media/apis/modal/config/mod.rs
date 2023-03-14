@@ -21,6 +21,9 @@ pub fn api_url(model: &str) -> &str {
         MediaModel::DREAMLIKE_DIFFUSION_1 => {
             "https://ydubuc--mist-dreamlike-art-dreamlike-diffusion-1-0-entrypoint.modal.run"
         }
+        MediaModel::ARCANE_DIFFUSION => {
+            "https://ydubuc--mist-nitrosocke-arcane-diffusion-entrypoint.modal.run"
+        }
         _ => "",
     }
 }
