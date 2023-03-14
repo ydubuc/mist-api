@@ -16,7 +16,7 @@ use crate::{
         models::generate_media_request::GenerateMediaRequest,
     },
     media::{self, models::media::Media, util::backblaze},
-    webhooks::modal::dtos::receive_webhook_dto::ReceiveWebhookDto,
+    webhooks::modal::dtos::receive_webhook_dto::{ReceiveWebhookDto, ReceiveWebhookDtoOutput},
     AppState,
 };
 
@@ -77,21 +77,21 @@ async fn generate_media(
     webhook_dto: &ReceiveWebhookDto,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
-    if webhook_dto.images.len() < 1 {
+    if webhook_dto.output.len() < 1 {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Modal generated no images.".to_string(),
         });
     };
 
-    let mut futures = Vec::with_capacity(webhook_dto.images.len());
+    let mut futures = Vec::with_capacity(webhook_dto.output.len());
 
-    for image_url in &webhook_dto.images {
-        futures.push(upload_image_and_create_media(request, image_url, state));
+    for out in &webhook_dto.output {
+        futures.push(upload_image_and_create_media(request, out, state));
     }
 
     let results = futures::future::join_all(futures).await;
-    let mut media = Vec::with_capacity(webhook_dto.images.len());
+    let mut media = Vec::with_capacity(webhook_dto.output.len());
 
     for result in results {
         if result.is_ok() {
@@ -117,23 +117,16 @@ async fn generate_media(
 
 async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
-    image_url: &str,
+    output: &ReceiveWebhookDtoOutput,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(image_url).await
+    let Ok(bytes) = get_bytes_with_retry(&output.url).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Failed to get bytes".to_string()
         });
     };
-    // let Ok(bytes) = base64::decode(&base64_image)
-    // else {
-    //     return Err(ApiError {
-    //         code: StatusCode::INTERNAL_SERVER_ERROR,
-    //         message: "Could not decode image.".to_string()
-    //     });
-    // };
 
     let uuid = Uuid::new_v4().to_string();
     let file_properties = FileProperties {
@@ -141,7 +134,6 @@ async fn upload_image_and_create_media(
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
         mime_type: mime::IMAGE_PNG.to_string(),
-        // mime_type: "image/webp".to_string(),
         data: Bytes::from(bytes),
     };
 
@@ -154,7 +146,7 @@ async fn upload_image_and_create_media(
             Ok(Media::from_request(
                 &file_properties.id,
                 request,
-                None,
+                Some(&output.seed),
                 &response,
                 b2_download_url,
             ))
