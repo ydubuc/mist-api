@@ -86,8 +86,8 @@ async fn generate_media(
 
     let mut futures = Vec::with_capacity(webhook_dto.images.len());
 
-    for image in &webhook_dto.images {
-        futures.push(upload_image_and_create_media(request, image, state));
+    for image_url in &webhook_dto.images {
+        futures.push(upload_image_and_create_media(request, image_url, state));
     }
 
     let results = futures::future::join_all(futures).await;
@@ -117,16 +117,23 @@ async fn generate_media(
 
 async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
-    base64_image: &str,
+    image_url: &str,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&base64_image)
+    let Ok(bytes) = get_bytes_with_retry(image_url).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
+            message: "Failed to get bytes".to_string()
         });
     };
+    // let Ok(bytes) = base64::decode(&base64_image)
+    // else {
+    //     return Err(ApiError {
+    //         code: StatusCode::INTERNAL_SERVER_ERROR,
+    //         message: "Could not decode image.".to_string()
+    //     });
+    // };
 
     let uuid = Uuid::new_v4().to_string();
     let file_properties = FileProperties {
@@ -134,6 +141,7 @@ async fn upload_image_and_create_media(
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
         mime_type: mime::IMAGE_PNG.to_string(),
+        // mime_type: "image/webp".to_string(),
         data: Bytes::from(bytes),
     };
 
@@ -154,6 +162,37 @@ async fn upload_image_and_create_media(
         Err(e) => {
             tracing::error!("upload_image_and_create_media failed upload_file_with_retry");
             Err(e)
+        }
+    }
+}
+
+async fn get_bytes_with_retry(url: &str) -> Result<Bytes, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async { get_bytes(url).await }).await
+}
+
+async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
+    let client = reqwest::Client::new();
+    let result = client.get(url).send().await;
+
+    match result {
+        Ok(res) => match res.bytes().await {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => {
+                tracing::error!(%e);
+                Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to get bytes from response.".to_string(),
+                })
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to get url response.".to_string(),
+            })
         }
     }
 }
