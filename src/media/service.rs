@@ -68,24 +68,25 @@ pub async fn generate_media(
     let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
     match dto.generator.as_ref() {
-        MediaGenerator::MIST => match model.as_ref() {
-            MediaModel::STABLE_DIFFUSION_1_5 => {
-                // replicate::service::spawn_generate_media_task(req, state)
-                modal::service::spawn_generate_media_task(req, state)
-            }
-            MediaModel::STABLE_DIFFUSION_2_1 => {
-                // replicate::service::spawn_generate_media_task(req, state)
-                modal::service::spawn_generate_media_task(req, state)
-            }
-            // MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
-            MediaModel::OPENJOURNEY => modal::service::spawn_generate_media_task(req, state),
-            MediaModel::OPENJOURNEY_2 => modal::service::spawn_generate_media_task(req, state),
-            MediaModel::DREAMSHAPER => modal::service::spawn_generate_media_task(req, state),
-            MediaModel::DREAMLIKE_DIFFUSION_1 => {
-                modal::service::spawn_generate_media_task(req, state)
-            }
-            _ => return Err(DefaultApiError::InternalServerError.value()),
-        },
+        MediaGenerator::MIST => modal::service::spawn_generate_media_task(req, state),
+        // MediaGenerator::MIST => match model.as_ref() {
+        //     MediaModel::STABLE_DIFFUSION_1_5 => {
+        //         // replicate::service::spawn_generate_media_task(req, state)
+        //         modal::service::spawn_generate_media_task(req, state)
+        //     }
+        //     MediaModel::STABLE_DIFFUSION_2_1 => {
+        //         // replicate::service::spawn_generate_media_task(req, state)
+        //         modal::service::spawn_generate_media_task(req, state)
+        //     }
+        //     // MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
+        //     MediaModel::OPENJOURNEY => modal::service::spawn_generate_media_task(req, state),
+        //     MediaModel::OPENJOURNEY_2 => modal::service::spawn_generate_media_task(req, state),
+        //     MediaModel::DREAMSHAPER => modal::service::spawn_generate_media_task(req, state),
+        //     MediaModel::DREAMLIKE_DIFFUSION_1 => {
+        //         modal::service::spawn_generate_media_task(req, state)
+        //     }
+        //     _ => return Err(DefaultApiError::InternalServerError.value()),
+        // },
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::spawn_generate_media_task(req, state)
         }
