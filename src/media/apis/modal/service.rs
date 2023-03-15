@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    config::api_url, models::input_spec_sd15::InputStableDiffusion15,
+    config::api_url, models::input_spec_modal::InputModal,
     structs::modal_entrypoint_response::ModalEntrypointResponse,
 };
 
@@ -249,9 +249,7 @@ async fn call_modal_entrypoint(
 fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> Value {
     let dto = &request.generate_media_dto;
 
-    tracing::debug!("{}", state.envy.railway_static_url);
-
-    let input: Value = serde_json::to_value(InputStableDiffusion15 {
+    let input: Value = serde_json::to_value(InputModal {
         request_id: request.id.to_string(),
         prompt: dto.prompt.to_string(),
         negative_prompt: dto.negative_prompt.clone(),

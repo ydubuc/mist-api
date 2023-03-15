@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
-pub struct InputStableDiffusion15 {
+pub struct InputModal {
     pub request_id: String,
     pub prompt: String,
     pub negative_prompt: Option<String>,

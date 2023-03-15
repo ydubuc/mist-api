@@ -25,9 +25,9 @@ use crate::{
 };
 
 use super::{
-    apis::{dalle, modal, replicate, stable_horde},
+    apis::{dalle, modal, stable_horde},
     dtos::{generate_media_dto::GenerateMediaDto, get_media_filter_dto::GetMediaFilterDto},
-    enums::{media_generator::MediaGenerator, media_model::MediaModel},
+    enums::media_generator::MediaGenerator,
     errors::MediaApiError,
     models::media::Media,
     util::{backblaze, openai},
@@ -65,28 +65,8 @@ pub async fn generate_media(
     let req = generate_media_request.clone();
     let state = state.clone();
 
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
-
     match dto.generator.as_ref() {
         MediaGenerator::MIST => modal::service::spawn_generate_media_task(req, state),
-        // MediaGenerator::MIST => match model.as_ref() {
-        //     MediaModel::STABLE_DIFFUSION_1_5 => {
-        //         // replicate::service::spawn_generate_media_task(req, state)
-        //         modal::service::spawn_generate_media_task(req, state)
-        //     }
-        //     MediaModel::STABLE_DIFFUSION_2_1 => {
-        //         // replicate::service::spawn_generate_media_task(req, state)
-        //         modal::service::spawn_generate_media_task(req, state)
-        //     }
-        //     // MediaModel::OPENJOURNEY => replicate::service::spawn_generate_media_task(req, state),
-        //     MediaModel::OPENJOURNEY => modal::service::spawn_generate_media_task(req, state),
-        //     MediaModel::OPENJOURNEY_2 => modal::service::spawn_generate_media_task(req, state),
-        //     MediaModel::DREAMSHAPER => modal::service::spawn_generate_media_task(req, state),
-        //     MediaModel::DREAMLIKE_DIFFUSION_1 => {
-        //         modal::service::spawn_generate_media_task(req, state)
-        //     }
-        //     _ => return Err(DefaultApiError::InternalServerError.value()),
-        // },
         MediaGenerator::STABLE_HORDE => {
             stable_horde::service::spawn_generate_media_task(req, state)
         }
