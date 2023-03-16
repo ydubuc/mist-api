@@ -253,11 +253,11 @@ fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> 
     let input: Value = serde_json::to_value(InputModal {
         request_id: request.id.to_string(),
         prompt: dto.formatted_prompt(),
-        negative_prompt: dto.negative_prompt.clone(),
+        negative_prompt: Some(dto.formatted_negative_prompt()),
         width: dto.width,
         height: dto.height,
         number: dto.number,
-        steps: 30,
+        steps: 50,
         cfg_scale: dto.cfg_scale.unwrap_or(8),
         callback_url: format!("https://{}/webhooks/modal", state.envy.railway_static_url),
     })

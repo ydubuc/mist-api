@@ -75,6 +75,15 @@ impl GenerateMediaDto {
         }
     }
 
+    pub fn formatted_negative_prompt(&self) -> String {
+        let formatted = "naked, nude, nsfw, deformed, duplicate";
+        if self.negative_prompt.is_some() {
+            return format!("{formatted}, {}", self.negative_prompt.clone().unwrap());
+        } else {
+            return formatted.to_string();
+        }
+    }
+
     pub fn sanitized(&self) -> Self {
         return Self {
             prompt: self.prompt.trim().replace("\n", " ").replace("\r", " "),
