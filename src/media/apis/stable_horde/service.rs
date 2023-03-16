@@ -410,7 +410,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     };
 
     InputSpec {
-        prompt: dto.prompt.to_string(),
+        prompt: dto.formatted_prompt(),
         params: Some(InputSpecParams {
             sample_namer: None,
             cfg_scale: match dto.cfg_scale {

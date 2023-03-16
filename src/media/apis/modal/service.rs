@@ -252,7 +252,7 @@ fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> 
 
     let input: Value = serde_json::to_value(InputModal {
         request_id: request.id.to_string(),
-        prompt: dto.prompt.to_string(),
+        prompt: dto.formatted_prompt(),
         negative_prompt: dto.negative_prompt.clone(),
         width: dto.width,
         height: dto.height,
