@@ -21,7 +21,7 @@ pub async fn get_generate_media_requests(
     Query(dto): Query<GetGenerateMediaRequestsFilterDto>,
 ) -> Result<Json<Vec<GenerateMediaRequest>>, ApiError> {
     match Claims::from_header(authorization, &state.envy.jwt_secret) {
-        Ok(claims) => {
+        Ok(_) => {
             if let Err(e) = dto.validate() {
                 return Err(ApiError {
                     code: StatusCode::BAD_REQUEST,
@@ -29,7 +29,7 @@ pub async fn get_generate_media_requests(
                 });
             }
 
-            match service::get_generate_media_requests(&dto, &claims, &state.pool).await {
+            match service::get_generate_media_requests_as_admin(&dto, &state.pool).await {
                 Ok(generate_media_requests) => Ok(Json(generate_media_requests)),
                 Err(e) => Err(e),
             }
