@@ -5,7 +5,7 @@ pub fn is_valid_model(model: &str) -> bool {
         MediaModel::STABLE_DIFFUSION_1_5,
         MediaModel::STABLE_DIFFUSION_2_1,
         MediaModel::OPENJOURNEY,
-        MediaModel::OPENJOURNEY_2,
+        MediaModel::OPENJOURNEY_V4,
         MediaModel::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1,
         MediaModel::ARCANE_DIFFUSION,

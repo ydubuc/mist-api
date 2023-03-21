@@ -14,8 +14,8 @@ pub fn api_url(model: &str) -> &str {
         MediaModel::OPENJOURNEY => {
             "https://ydubuc--mist-prompthero-openjourney-entrypoint.modal.run"
         }
-        MediaModel::OPENJOURNEY_2 => {
-            "https://ydubuc--mist-prompthero-openjourney-v2-entrypoint.modal.run"
+        MediaModel::OPENJOURNEY_V4 => {
+            "https://ydubuc--mist-prompthero-openjourney-v4-entrypoint.modal.run"
         }
         MediaModel::DREAMSHAPER => "https://ydubuc--mist-lykon-dreamshaper-entrypoint.modal.run",
         MediaModel::DREAMLIKE_DIFFUSION_1 => {
