@@ -5,6 +5,7 @@ pub struct Envy {
     pub app_env: String,
     pub frontend_url: String,
     pub port: Option<u16>,
+    pub role: Option<String>,
 
     pub database_url: String,
 

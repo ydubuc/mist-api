@@ -56,6 +56,34 @@ impl GenerateMediaDto {
         return 8;
     }
 
+    pub fn formatted_prompt(&self) -> String {
+        let model = self
+            .model
+            .clone()
+            .unwrap_or(self.default_model().to_string());
+        let prefix = match model.as_ref() {
+            MediaModel::OPENJOURNEY => "mdjrny-v4 style",
+            MediaModel::DREAMLIKE_DIFFUSION_1 => "dreamlikeart",
+            MediaModel::ARCANE_DIFFUSION => "arcane style",
+            _ => "",
+        };
+
+        if !prefix.is_empty() && !self.prompt.starts_with(prefix) {
+            return format!("{} {}", prefix, self.prompt);
+        } else {
+            return self.prompt.to_string();
+        }
+    }
+
+    pub fn formatted_negative_prompt(&self) -> String {
+        let formatted = "naked, nude, nsfw, low-res, blurry, bad anatomy";
+        if self.negative_prompt.is_some() {
+            return format!("{formatted}, {}", self.negative_prompt.clone().unwrap());
+        } else {
+            return formatted.to_string();
+        }
+    }
+
     pub fn sanitized(&self) -> Self {
         return Self {
             prompt: self.prompt.trim().replace("\n", " ").replace("\r", " "),

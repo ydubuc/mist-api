@@ -3,24 +3,14 @@ use sqlx::Postgres;
 
 use crate::{
     app::models::api_error::ApiError,
-    media::{
-        dtos::generate_media_dto::GenerateMediaDto,
-        enums::{media_generator::MediaGenerator, media_model::MediaModel},
-    },
+    media::{dtos::generate_media_dto::GenerateMediaDto, enums::media_generator::MediaGenerator},
 };
 
 use super::dtos::edit_user_ink_dto::EditUserInkDto;
 
 pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) -> i64 {
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
-
     let base_ink = match dto.generator.as_ref() {
-        MediaGenerator::MIST => match model.as_ref() {
-            MediaModel::STABLE_DIFFUSION_1_5 => 20.0,
-            MediaModel::STABLE_DIFFUSION_2_1 => 20.0,
-            MediaModel::OPENJOURNEY => 30.0,
-            _ => panic!("calculate_ink_cost for model {} not implemented.", model),
-        },
+        MediaGenerator::MIST => 10.0,
         MediaGenerator::STABLE_HORDE => 10.0,
         MediaGenerator::DALLE => 40.0,
         _ => panic!(

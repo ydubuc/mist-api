@@ -234,7 +234,7 @@ async fn check_token(b2: &Arc<RwLock<B2>>) {
         let mut b2 = b2.write().await;
 
         match b2.check_token().await {
-            Ok(_) => tracing::info!("updated b2 token"),
+            Ok(_) => {}
             Err(e) => tracing::error!("check_token: {:?}", e),
         }
     }

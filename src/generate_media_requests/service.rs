@@ -69,9 +69,8 @@ pub async fn create_request(
     }
 }
 
-pub async fn get_generate_media_requests(
+pub async fn get_generate_media_requests_as_admin(
     dto: &GetGenerateMediaRequestsFilterDto,
-    _claims: &Claims,
     pool: &PgPool,
 ) -> Result<Vec<GenerateMediaRequest>, ApiError> {
     let sql_result = dto.to_sql();
@@ -100,6 +99,38 @@ pub async fn get_generate_media_requests(
         }
     }
 }
+
+// pub async fn get_generate_media_requests(
+//     dto: &GetGenerateMediaRequestsFilterDto,
+//     _claims: &Claims,
+//     pool: &PgPool,
+// ) -> Result<Vec<GenerateMediaRequest>, ApiError> {
+//     let sql_result = dto.to_sql();
+//     let Ok(sql) = sql_result
+//     else {
+//         return Err(sql_result.err().unwrap());
+//     };
+
+//     let mut sqlx = sqlx::query_as::<_, GenerateMediaRequest>(&sql);
+
+//     if let Some(id) = &dto.id {
+//         sqlx = sqlx.bind(id);
+//     }
+//     if let Some(user_id) = &dto.user_id {
+//         sqlx = sqlx.bind(user_id)
+//     }
+//     if let Some(status) = &dto.status {
+//         sqlx = sqlx.bind(status)
+//     }
+
+//     match sqlx.fetch_all(pool).await {
+//         Ok(generate_media_requests) => Ok(generate_media_requests),
+//         Err(e) => {
+//             tracing::error!(%e);
+//             Err(DefaultApiError::InternalServerError.value())
+//         }
+//     }
+// }
 
 pub async fn get_generate_media_request_by_id_as_admin(
     id: &str,

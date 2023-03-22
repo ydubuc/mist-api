@@ -19,7 +19,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
-    app::{enums::api_status::ApiStatus, envy::Envy, errors::DefaultApiError},
+    app::{enums::api_status::ApiStatus, envy::Envy, errors::DefaultApiError, util::janitor},
     media::util::backblaze::b2::{b2::B2, config::Config},
 };
 
@@ -75,6 +75,7 @@ async fn main() {
 
     // properties
     let port = envy.port.to_owned().unwrap_or(3000);
+    let role = envy.role.to_owned().unwrap_or("default".to_string());
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_headers(Any)
@@ -108,8 +109,11 @@ async fn main() {
         envy,
     });
 
+    if role == "main" {
+        janitor::spawn(state.clone());
+    }
+
     // app
-    // let app = Router::with_state(state)
     let app = Router::new()
         .route("/", get(app::controller::get_root))
         .route("/status", get(app::controller::get_api_state))

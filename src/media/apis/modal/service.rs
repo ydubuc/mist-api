@@ -15,13 +15,13 @@ use crate::{
         enums::generate_media_request_status::GenerateMediaRequestStatus,
         models::generate_media_request::GenerateMediaRequest,
     },
-    media::{self, enums::media_model::MediaModel, models::media::Media, util::backblaze},
-    webhooks::modal::dtos::receive_webhook_dto::ReceiveWebhookDto,
+    media::{self, models::media::Media, util::backblaze},
+    webhooks::modal::dtos::receive_webhook_dto::{ReceiveWebhookDto, ReceiveWebhookDtoOutput},
     AppState,
 };
 
 use super::{
-    config::API_URL, models::input_spec_sd15::InputStableDiffusion15,
+    config::api_url, models::input_spec_modal::InputModal,
     structs::modal_entrypoint_response::ModalEntrypointResponse,
 };
 
@@ -77,21 +77,21 @@ async fn generate_media(
     webhook_dto: &ReceiveWebhookDto,
     state: &Arc<AppState>,
 ) -> Result<Vec<Media>, ApiError> {
-    if webhook_dto.images.len() < 1 {
+    if webhook_dto.output.len() < 1 {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Modal generated no images.".to_string(),
         });
     };
 
-    let mut futures = Vec::with_capacity(webhook_dto.images.len());
+    let mut futures = Vec::with_capacity(webhook_dto.output.len());
 
-    for image in &webhook_dto.images {
-        futures.push(upload_image_and_create_media(request, image, state));
+    for out in &webhook_dto.output {
+        futures.push(upload_image_and_create_media(request, out, state));
     }
 
     let results = futures::future::join_all(futures).await;
-    let mut media = Vec::with_capacity(webhook_dto.images.len());
+    let mut media = Vec::with_capacity(webhook_dto.output.len());
 
     for result in results {
         if result.is_ok() {
@@ -117,14 +117,14 @@ async fn generate_media(
 
 async fn upload_image_and_create_media(
     request: &GenerateMediaRequest,
-    base64_image: &str,
+    output: &ReceiveWebhookDtoOutput,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&base64_image)
+    let Ok(bytes) = get_bytes_with_retry(&output.url).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
+            message: "Failed to get bytes".to_string()
         });
     };
 
@@ -133,7 +133,8 @@ async fn upload_image_and_create_media(
         id: uuid.to_string(),
         field_name: uuid.to_string(),
         file_name: uuid.to_string(),
-        mime_type: mime::IMAGE_PNG.to_string(),
+        // mime_type: mime::IMAGE_PNG.to_string(),
+        mime_type: "image/webp".to_string(),
         data: Bytes::from(bytes),
     };
 
@@ -146,7 +147,7 @@ async fn upload_image_and_create_media(
             Ok(Media::from_request(
                 &file_properties.id,
                 request,
-                None,
+                Some(&output.seed),
                 &response,
                 b2_download_url,
             ))
@@ -154,6 +155,37 @@ async fn upload_image_and_create_media(
         Err(e) => {
             tracing::error!("upload_image_and_create_media failed upload_file_with_retry");
             Err(e)
+        }
+    }
+}
+
+async fn get_bytes_with_retry(url: &str) -> Result<Bytes, ApiError> {
+    let retry_strategy = FixedInterval::from_millis(10000).take(3);
+
+    Retry::spawn(retry_strategy, || async { get_bytes(url).await }).await
+}
+
+async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
+    let client = reqwest::Client::new();
+    let result = client.get(url).send().await;
+
+    match result {
+        Ok(res) => match res.bytes().await {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => {
+                tracing::error!(%e);
+                Err(ApiError {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Failed to get bytes from response.".to_string(),
+                })
+            }
+        },
+        Err(e) => {
+            tracing::error!(%e);
+            Err(ApiError {
+                code: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Failed to get url response.".to_string(),
+            })
         }
     }
 }
@@ -176,6 +208,8 @@ async fn call_modal_entrypoint(
 ) -> Result<ModalEntrypointResponse, ApiError> {
     let modal_webhook_secret = &state.envy.modal_webhook_secret;
     let input_spec = provide_input_spec(request, state);
+    let dto = &request.generate_media_dto;
+    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -186,7 +220,7 @@ async fn call_modal_entrypoint(
 
     let client = reqwest::Client::new();
     let result = client
-        .post(API_URL)
+        .post(api_url(&model))
         .headers(headers)
         .json(&input_spec)
         .send()
@@ -215,25 +249,19 @@ async fn call_modal_entrypoint(
 
 fn provide_input_spec(request: &GenerateMediaRequest, state: &Arc<AppState>) -> Value {
     let dto = &request.generate_media_dto;
-    let model = dto.model.clone().unwrap_or(dto.default_model().to_string());
 
-    tracing::debug!("{}", state.envy.railway_static_url);
-
-    let input: Value = match model.as_ref() {
-        MediaModel::STABLE_DIFFUSION_1_5 => serde_json::to_value(InputStableDiffusion15 {
-            request_id: request.id.to_string(),
-            prompt: dto.prompt.to_string(),
-            negative_prompt: dto.negative_prompt.clone(),
-            width: dto.width,
-            height: dto.height,
-            number: dto.number,
-            steps: 50,
-            cfg_scale: dto.cfg_scale.unwrap_or(8),
-            callback_url: format!("{}/webhooks/modal", state.envy.railway_static_url),
-        })
-        .unwrap(),
-        _ => panic!("provide_input_spec for model {} not implemented.", model),
-    };
+    let input: Value = serde_json::to_value(InputModal {
+        request_id: request.id.to_string(),
+        prompt: dto.formatted_prompt(),
+        negative_prompt: Some(dto.formatted_negative_prompt()),
+        width: dto.width,
+        height: dto.height,
+        number: dto.number,
+        steps: 50,
+        cfg_scale: dto.cfg_scale.unwrap_or(8),
+        callback_url: format!("https://{}/webhooks/modal", state.envy.railway_static_url),
+    })
+    .unwrap();
 
     input
 }

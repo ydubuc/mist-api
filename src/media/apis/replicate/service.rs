@@ -414,7 +414,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
                 num_outputs: dto.number,
                 num_inference_steps: 50,
                 guidance_scale: dto.cfg_scale.unwrap_or(8),
-                scheduler: Some("K-LMS".to_string()),
+                scheduler: Some("K_EULER".to_string()),
                 seed: None,
             })
             .unwrap()
