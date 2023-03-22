@@ -76,7 +76,7 @@ impl GenerateMediaDto {
     }
 
     pub fn formatted_negative_prompt(&self) -> String {
-        let formatted = "naked, nude, nsfw, deformed, duplicate";
+        let formatted = "naked, nude, nsfw, low-res, blurry, bad anatomy";
         if self.negative_prompt.is_some() {
             return format!("{formatted}, {}", self.negative_prompt.clone().unwrap());
         } else {
