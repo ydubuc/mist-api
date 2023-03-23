@@ -8,5 +8,6 @@ pub struct InputSpecOpenjourney {
     pub num_outputs: u8,
     pub num_inference_steps: u16,
     pub guidance_scale: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<u64>,
 }
