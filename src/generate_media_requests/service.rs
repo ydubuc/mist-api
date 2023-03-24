@@ -85,10 +85,13 @@ pub async fn get_generate_media_requests_as_admin(
         sqlx = sqlx.bind(id);
     }
     if let Some(user_id) = &dto.user_id {
-        sqlx = sqlx.bind(user_id)
+        sqlx = sqlx.bind(user_id);
     }
     if let Some(status) = &dto.status {
-        sqlx = sqlx.bind(status)
+        sqlx = sqlx.bind(status);
+    }
+    if let Some(api_v) = &dto.api_v {
+        sqlx = sqlx.bind(api_v);
     }
 
     match sqlx.fetch_all(pool).await {

@@ -4,7 +4,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    app::util::time, auth::jwt::models::claims::Claims,
+    app::{self, util::time},
+    auth::jwt::models::claims::Claims,
     generate_media_requests::enums::generate_media_request_status::GenerateMediaRequestStatus,
     media::dtos::generate_media_dto::GenerateMediaDto,
 };
@@ -15,6 +16,7 @@ pub struct GenerateMediaRequest {
     pub user_id: String,
     pub status: String,
     pub generate_media_dto: sqlx::types::Json<GenerateMediaDto>,
+    pub api_v: Option<i16>,
     pub created_at: i64,
 }
 
@@ -25,6 +27,7 @@ impl GenerateMediaRequest {
             user_id: claims.id.to_string(),
             status: GenerateMediaRequestStatus::Processing.value().to_string(),
             generate_media_dto: sqlx::types::Json(generate_media_dto.sanitized()),
+            api_v: Some(app::config::API_V),
             created_at: time::current_time_in_secs() as i64,
         };
     }
