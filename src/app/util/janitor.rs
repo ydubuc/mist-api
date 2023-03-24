@@ -29,13 +29,14 @@ pub fn spawn(state: Arc<AppState>) {
 }
 
 async fn cleanup_requests(state: &Arc<AppState>) {
-    let ten_minutes_ago = (current_time_in_secs() as i64) - 600;
+    // let ten_minutes_ago = (current_time_in_secs() as i64) - 600;
+    let twenty_minutes_ago = (current_time_in_secs() as i64) - 1200;
     let dto = GetGenerateMediaRequestsFilterDto {
         id: None,
         user_id: None,
         status: Some(GenerateMediaRequestStatus::Processing.value().to_string()),
         sort: Some("created_at,desc".to_string()),
-        cursor: Some(format!("{},0", ten_minutes_ago)),
+        cursor: Some(format!("{},0", twenty_minutes_ago)),
         limit: None,
     };
 
