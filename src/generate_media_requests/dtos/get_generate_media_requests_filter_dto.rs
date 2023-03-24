@@ -14,6 +14,7 @@ pub struct GetGenerateMediaRequestsFilterDto {
     #[validate(length(equal = 36, message = "user_id must be 36 characters."))]
     pub user_id: Option<String>,
     pub status: Option<String>,
+    pub api_v: Option<i16>,
     pub sort: Option<String>,
     pub cursor: Option<String>,
     #[validate(range(min = 1, max = 100, message = "limit must be equal or less than 100."))]
@@ -43,6 +44,10 @@ impl GetGenerateMediaRequestsFilterDto {
         if self.status.is_some() {
             index += 1;
             clauses.push(["status = $", &index.to_string()].concat());
+        }
+        if self.api_v.is_some() {
+            index += 1;
+            clauses.push(["api_v = $", &index.to_string()].concat());
         }
 
         // SORT
