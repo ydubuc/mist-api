@@ -85,6 +85,7 @@ CREATE TABLE generate_media_requests(
     user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
     status VARCHAR(255) NOT NULL,
     generate_media_dto JSONB NOT NULL,
+    api_v SMALLINT DEFAULT 1,
     created_at BIGINT NOT NULL
 );
 

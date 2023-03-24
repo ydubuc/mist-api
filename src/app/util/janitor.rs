@@ -6,7 +6,7 @@ use tokio::{
 };
 
 use crate::{
-    app::util::time::current_time_in_secs,
+    app::{self, util::time::current_time_in_secs},
     generate_media_requests::{
         self, dtos::get_generate_media_requests_filter_dto::GetGenerateMediaRequestsFilterDto,
         enums::generate_media_request_status::GenerateMediaRequestStatus,
@@ -29,14 +29,14 @@ pub fn spawn(state: Arc<AppState>) {
 }
 
 async fn cleanup_requests(state: &Arc<AppState>) {
-    // let ten_minutes_ago = (current_time_in_secs() as i64) - 600;
-    let twenty_minutes_ago = (current_time_in_secs() as i64) - 1200;
+    let ten_minutes_ago = (current_time_in_secs() as i64) - 600;
     let dto = GetGenerateMediaRequestsFilterDto {
         id: None,
         user_id: None,
         status: Some(GenerateMediaRequestStatus::Processing.value().to_string()),
+        api_v: Some(app::config::API_V),
         sort: Some("created_at,desc".to_string()),
-        cursor: Some(format!("{},0", twenty_minutes_ago)),
+        cursor: Some(format!("{},0", ten_minutes_ago)),
         limit: None,
     };
 
