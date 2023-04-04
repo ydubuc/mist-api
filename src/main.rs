@@ -189,14 +189,14 @@ async fn main() {
         // LAYERS
         .layer(cors)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(|_err: BoxError| async move {
-                    DefaultApiError::InternalServerError.value();
-                }))
-                .layer(BufferLayer::new(1024))
-                .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
-        )
+        // .layer(
+        //     ServiceBuilder::new()
+        //         .layer(HandleErrorLayer::new(|_err: BoxError| async move {
+        //             DefaultApiError::InternalServerError.value();
+        //         }))
+        //         .layer(BufferLayer::new(1024))
+        //         .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
+        // )
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
