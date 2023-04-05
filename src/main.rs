@@ -39,6 +39,7 @@ mod webhooks;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub client: reqwest::Client,
     pub b2: Arc<RwLock<B2>>,
     pub api_state: Arc<ApiState>,
     pub envy: Envy,
@@ -80,6 +81,7 @@ async fn main() {
         .allow_origin(Any)
         .allow_headers(Any)
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
+    let client = reqwest::Client::new();
 
     let pool = PgPoolOptions::new()
         .max_connections(33)
@@ -102,6 +104,7 @@ async fn main() {
 
     let state = Arc::new(AppState {
         pool,
+        client,
         b2: Arc::new(RwLock::new(b2)),
         api_state: Arc::new(ApiState {
             api_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
@@ -189,14 +192,14 @@ async fn main() {
         // LAYERS
         .layer(cors)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(2097152))
-        // .layer(
-        //     ServiceBuilder::new()
-        //         .layer(HandleErrorLayer::new(|_err: BoxError| async move {
-        //             DefaultApiError::InternalServerError.value();
-        //         }))
-        //         .layer(BufferLayer::new(1024))
-        //         .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
-        // )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|_err: BoxError| async move {
+                    DefaultApiError::InternalServerError.value();
+                }))
+                .layer(BufferLayer::new(1024))
+                .layer(RateLimitLayer::new(5, Duration::from_secs(1))),
+        )
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

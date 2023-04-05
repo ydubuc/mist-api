@@ -98,9 +98,9 @@ pub fn send_notifications_to_devices_with_user_id(
 
                 for device in devices {
                     let Some(messaging_token) = device.messaging_token
-                else {
-                    continue;
-                };
+                    else {
+                        continue;
+                    };
 
                     futures.push(app::util::fcm::send_notification(
                         messaging_token.to_string(),

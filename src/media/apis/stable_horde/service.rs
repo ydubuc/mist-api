@@ -69,7 +69,7 @@ async fn generate_media(
     let dto = &request.generate_media_dto;
 
     let stable_horde_request_response_result =
-        await_request_completion(dto, stable_horde_api_key).await;
+        await_request_completion(dto, stable_horde_api_key, &state.client).await;
     let Ok(stable_horde_request_response) = stable_horde_request_response_result
     else {
         return Err(stable_horde_request_response_result.unwrap_err());
@@ -129,7 +129,7 @@ async fn upload_image_and_create_media(
     stable_horde_generation: &StableHordeGeneration,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(&stable_horde_generation.img).await
+    let Ok(bytes) = get_bytes_with_retry(&stable_horde_generation.img, &state.client).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -167,14 +167,13 @@ async fn upload_image_and_create_media(
     }
 }
 
-async fn get_bytes_with_retry(url: &str) -> Result<Bytes, ApiError> {
+async fn get_bytes_with_retry(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
-    Retry::spawn(retry_strategy, || async { get_bytes(url).await }).await
+    Retry::spawn(retry_strategy, || async { get_bytes(url, client).await }).await
 }
 
-async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
-    let client = reqwest::Client::new();
+async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiError> {
     let result = client.get(url).send().await;
 
     match result {
@@ -201,8 +200,9 @@ async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
 async fn await_request_completion(
     dto: &GenerateMediaDto,
     stable_horde_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
-    let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key).await;
+    let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key, client).await;
     let Ok(generate_async_response) = generate_async_result
     else {
         tracing::error!("await_request_completion failed generate_async_with_retry");
@@ -213,7 +213,7 @@ async fn await_request_completion(
 
     sleep(Duration::from_millis(5000)).await;
 
-    let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
+    let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
     else {
         tracing::error!("await_request_completion failed get_request_by_id_with_retry (initial check)");
         return Err(DefaultApiError::InternalServerError.value());
@@ -247,7 +247,7 @@ async fn await_request_completion(
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", id, wait_time);
 
-        let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key).await
+        let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
         else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
@@ -283,7 +283,7 @@ async fn await_request_completion(
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key).await
+    let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key, client).await
     else {
         tracing::error!("await_request_completion failed get_request_by_id_with_retry (full)");
         return Err(DefaultApiError::InternalServerError.value());
@@ -295,11 +295,12 @@ async fn await_request_completion(
 async fn generate_async_with_retry(
     dto: &GenerateMediaDto,
     stable_horde_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<StableHordeGenerateAsyncResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        generate_async(dto, stable_horde_api_key).await
+        generate_async(dto, stable_horde_api_key, client).await
     })
     .await
 }
@@ -307,6 +308,7 @@ async fn generate_async_with_retry(
 async fn generate_async(
     dto: &GenerateMediaDto,
     stable_horde_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<StableHordeGenerateAsyncResponse, ApiError> {
     let input_spec = provide_input_spec(dto);
 
@@ -314,7 +316,6 @@ async fn generate_async(
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert("apiKey", stable_horde_api_key.parse().unwrap());
 
-    let client = reqwest::Client::new();
     let url = format!("{}/generate/async", API_URL);
     let result = client
         .post(url)
@@ -350,6 +351,7 @@ async fn get_request_by_id_with_retry(
     id: &str,
     check_only: bool,
     stable_horde_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(match check_only {
         true => 10000,
@@ -358,7 +360,7 @@ async fn get_request_by_id_with_retry(
     .take(3);
 
     Retry::spawn(retry_strategy, || async {
-        get_request_by_id(&id, check_only, stable_horde_api_key).await
+        get_request_by_id(&id, check_only, stable_horde_api_key, client).await
     })
     .await
 }
@@ -367,12 +369,12 @@ async fn get_request_by_id(
     id: &str,
     check_only: bool,
     stable_horde_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert("apikey", stable_horde_api_key.parse().unwrap());
 
-    let client = reqwest::Client::new();
     let check_param = if check_only { "check" } else { "status" };
     let url = format!("{}/generate/{}/{}", API_URL, check_param, id);
     let result = client.get(url).headers(headers).send().await;
@@ -403,6 +405,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     let version = match model.as_ref() {
         MediaModel::STABLE_DIFFUSION_1_5 => StableHordeModelVersion::STABLE_DIFFUSION,
         MediaModel::STABLE_DIFFUSION_2_1 => StableHordeModelVersion::STABLE_DIFFUSION_2_1,
+        MediaModel::OPENJOURNEY => StableHordeModelVersion::OPENJOURNEY,
         MediaModel::DREAMSHAPER => StableHordeModelVersion::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1 => StableHordeModelVersion::DREAMLIKE_DIFFUSION,
         MediaModel::ARCANE_DIFFUSION => StableHordeModelVersion::ARCANE_DIFFUSION,
@@ -440,9 +443,10 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
 }
 
 pub fn is_valid_model(model: &str) -> bool {
-    let valid_models: [&str; 5] = [
+    let valid_models: [&str; 6] = [
         MediaModel::STABLE_DIFFUSION_1_5,
         MediaModel::STABLE_DIFFUSION_2_1,
+        MediaModel::OPENJOURNEY,
         MediaModel::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1,
         MediaModel::ARCANE_DIFFUSION,
