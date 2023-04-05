@@ -66,7 +66,8 @@ async fn generate_media(
     let openai_api_key = &state.envy.openai_api_key;
     let dto = &request.generate_media_dto;
 
-    let dalle_generate_images_result = dalle_generate_images_with_retry(dto, openai_api_key).await;
+    let dalle_generate_images_result =
+        dalle_generate_images_with_retry(dto, openai_api_key, &state.client).await;
     let Ok(dalle_response) = dalle_generate_images_result
     else {
         return Err(dalle_generate_images_result.unwrap_err());
@@ -149,11 +150,12 @@ async fn upload_image_and_create_media(
 async fn dalle_generate_images_with_retry(
     dto: &GenerateMediaDto,
     openai_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<DalleGenerateImagesResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(30000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        dalle_generate_images(dto, openai_api_key).await
+        dalle_generate_images(dto, openai_api_key, client).await
     })
     .await
 }
@@ -161,6 +163,7 @@ async fn dalle_generate_images_with_retry(
 async fn dalle_generate_images(
     dto: &GenerateMediaDto,
     openai_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<DalleGenerateImagesResponse, ApiError> {
     let input_spec = provide_input_spec(dto);
 
@@ -171,7 +174,6 @@ async fn dalle_generate_images(
         ["Bearer ", openai_api_key].concat().parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let url = format!("{}/images/generations", API_URL);
     let result = client
         .post(url)

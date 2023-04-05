@@ -71,7 +71,7 @@ async fn generate_media(
     let dto = &request.generate_media_dto;
 
     let replicate_predictions_response_result =
-        await_request_completion(dto, replicate_api_key).await;
+        await_request_completion(dto, replicate_api_key, &state.client).await;
     let Ok(replicate_predictions_response) = replicate_predictions_response_result
     else {
         return Err(replicate_predictions_response_result.unwrap_err());
@@ -148,7 +148,7 @@ async fn upload_image_and_create_media(
     seed: Option<&str>,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(replicate_output_url, &state.envy.replicate_api_key).await
+    let Ok(bytes) = get_bytes_with_retry(replicate_output_url, &state.envy.replicate_api_key, &state.client).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -186,16 +186,24 @@ async fn upload_image_and_create_media(
     }
 }
 
-async fn get_bytes_with_retry(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError> {
+async fn get_bytes_with_retry(
+    url: &str,
+    replicate_api_key: &str,
+    client: &reqwest::Client,
+) -> Result<Bytes, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        get_bytes(url, replicate_api_key).await
+        get_bytes(url, replicate_api_key, client).await
     })
     .await
 }
 
-async fn get_bytes(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError> {
+async fn get_bytes(
+    url: &str,
+    replicate_api_key: &str,
+    client: &reqwest::Client,
+) -> Result<Bytes, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers.insert(
@@ -203,7 +211,6 @@ async fn get_bytes(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError
         format!("Token {}", replicate_api_key).parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let result = client.get(url).headers(headers).send().await;
 
     match result {
@@ -230,9 +237,10 @@ async fn get_bytes(url: &str, replicate_api_key: &str) -> Result<Bytes, ApiError
 async fn await_request_completion(
     dto: &GenerateMediaDto,
     replicate_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let replicate_predictions_response_result =
-        create_prediction_with_retry(dto, replicate_api_key).await;
+        create_prediction_with_retry(dto, replicate_api_key, client).await;
     let Ok(replicate_predictions_response) = replicate_predictions_response_result
     else {
         tracing::error!("await_request_completion failed create_prediction_with_retry");
@@ -257,7 +265,7 @@ async fn await_request_completion(
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", request.id, wait_time);
 
-        let Ok(check_response) = get_prediction_by_id_with_retry(&request.id, replicate_api_key).await
+        let Ok(check_response) = get_prediction_by_id_with_retry(&request.id, replicate_api_key, client).await
         else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
@@ -298,11 +306,12 @@ async fn await_request_completion(
 async fn create_prediction_with_retry(
     dto: &GenerateMediaDto,
     replicate_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        create_prediction(dto, replicate_api_key).await
+        create_prediction(dto, replicate_api_key, client).await
     })
     .await
 }
@@ -310,6 +319,7 @@ async fn create_prediction_with_retry(
 async fn create_prediction(
     dto: &GenerateMediaDto,
     replicate_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let input_spec = provide_input_spec(dto);
 
@@ -320,7 +330,6 @@ async fn create_prediction(
         format!("Token {}", replicate_api_key).parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let url = format!("{}/predictions", API_URL);
     let result = client
         .post(url)
@@ -353,11 +362,12 @@ async fn create_prediction(
 async fn get_prediction_by_id_with_retry(
     id: &str,
     replicate_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
     Retry::spawn(retry_strategy, || async {
-        get_prediction_by_id(id, replicate_api_key).await
+        get_prediction_by_id(id, replicate_api_key, client).await
     })
     .await
 }
@@ -365,6 +375,7 @@ async fn get_prediction_by_id_with_retry(
 async fn get_prediction_by_id(
     id: &str,
     replicate_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -373,7 +384,6 @@ async fn get_prediction_by_id(
         format!("Token {}", replicate_api_key).parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let url = format!("{}/predictions/{}", API_URL, id);
     let result = client.get(url).headers(headers).send().await;
 

@@ -120,7 +120,7 @@ async fn upload_image_and_create_media(
     output: &ReceiveWebhookDtoOutput,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(&output.url).await
+    let Ok(bytes) = get_bytes_with_retry(&output.url, &state.client).await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -159,14 +159,13 @@ async fn upload_image_and_create_media(
     }
 }
 
-async fn get_bytes_with_retry(url: &str) -> Result<Bytes, ApiError> {
+async fn get_bytes_with_retry(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiError> {
     let retry_strategy = FixedInterval::from_millis(10000).take(3);
 
-    Retry::spawn(retry_strategy, || async { get_bytes(url).await }).await
+    Retry::spawn(retry_strategy, || async { get_bytes(url, client).await }).await
 }
 
-async fn get_bytes(url: &str) -> Result<Bytes, ApiError> {
-    let client = reqwest::Client::new();
+async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiError> {
     let result = client.get(url).send().await;
 
     match result {
@@ -218,8 +217,8 @@ async fn call_modal_entrypoint(
         format!("Bearer {}", modal_webhook_secret).parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
-    let result = client
+    let result = state
+        .client
         .post(api_url(&model))
         .headers(headers)
         .json(&input_spec)
