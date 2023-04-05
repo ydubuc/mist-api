@@ -403,6 +403,7 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
     let version = match model.as_ref() {
         MediaModel::STABLE_DIFFUSION_1_5 => StableHordeModelVersion::STABLE_DIFFUSION,
         MediaModel::STABLE_DIFFUSION_2_1 => StableHordeModelVersion::STABLE_DIFFUSION_2_1,
+        MediaModel::OPENJOURNEY => StableHordeModelVersion::OPENJOURNEY,
         MediaModel::DREAMSHAPER => StableHordeModelVersion::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1 => StableHordeModelVersion::DREAMLIKE_DIFFUSION,
         MediaModel::ARCANE_DIFFUSION => StableHordeModelVersion::ARCANE_DIFFUSION,
@@ -440,9 +441,10 @@ fn provide_input_spec(dto: &GenerateMediaDto) -> InputSpec {
 }
 
 pub fn is_valid_model(model: &str) -> bool {
-    let valid_models: [&str; 5] = [
+    let valid_models: [&str; 6] = [
         MediaModel::STABLE_DIFFUSION_1_5,
         MediaModel::STABLE_DIFFUSION_2_1,
+        MediaModel::OPENJOURNEY,
         MediaModel::DREAMSHAPER,
         MediaModel::DREAMLIKE_DIFFUSION_1,
         MediaModel::ARCANE_DIFFUSION,
