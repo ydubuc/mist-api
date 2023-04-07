@@ -6,6 +6,7 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 #[macro_use]
 extern crate lazy_static;
 
+use app::util::fcm::FcmClient;
 use axum::{
     error_handling::HandleErrorLayer,
     http::Method,
@@ -40,6 +41,7 @@ mod webhooks;
 pub struct AppState {
     pub pool: PgPool,
     pub client: reqwest::Client,
+    pub fcm_client: FcmClient,
     pub b2: Arc<RwLock<B2>>,
     pub api_state: Arc<ApiState>,
     pub envy: Envy,
@@ -82,6 +84,7 @@ async fn main() {
         .allow_headers(Any)
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
     let client = reqwest::Client::new();
+    let fcm_client = FcmClient::new();
 
     let pool = PgPoolOptions::new()
         .max_connections(33)
@@ -105,6 +108,7 @@ async fn main() {
     let state = Arc::new(AppState {
         pool,
         client,
+        fcm_client,
         b2: Arc::new(RwLock::new(b2)),
         api_state: Arc::new(ApiState {
             api_status: Arc::new(RwLock::new(ApiStatus::Online.value())),
