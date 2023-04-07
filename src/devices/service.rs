@@ -108,6 +108,7 @@ pub fn send_notifications_to_devices_with_user_id(
                         body.to_string(),
                         click_action.clone(),
                         state.envy.fcm_api_key.to_string(),
+                        state.fcm_client.clone(),
                     ));
                 }
 
