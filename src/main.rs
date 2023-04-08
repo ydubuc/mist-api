@@ -101,7 +101,9 @@ async fn main() {
 
     let mut b2 = B2::new(Config::new(backblaze_key_id, backblaze_app_key));
     b2.set_bucket_id(backblaze_bucket_id);
-    b2.login().await.expect("failed to login to backblaze");
+    b2.login(&client)
+        .await
+        .expect("failed to login to backblaze");
 
     tracing::info!("logged in to backblaze");
 
