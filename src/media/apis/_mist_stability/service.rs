@@ -126,7 +126,13 @@ async fn upload_image_and_create_media(
     };
 
     let sub_folder = Some(["media/", &request.user_id].concat());
-    match backblaze::service::upload_file_with_retry(&file_properties, &sub_folder, &state.b2).await
+    match backblaze::service::upload_file_with_retry(
+        &file_properties,
+        &sub_folder,
+        &state.b2,
+        &state.client,
+    )
+    .await
     {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
