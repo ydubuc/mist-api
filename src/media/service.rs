@@ -122,7 +122,8 @@ async fn get_generate_media_request(
     }
 
     let openai_moderation_response_result =
-        openai::moderation::check_prompt(&dto.prompt, &state.envy.openai_api_key).await;
+        openai::moderation::check_prompt(&dto.prompt, &state.envy.openai_api_key, &state.client)
+            .await;
     if let Err(e) = openai_moderation_response_result {
         tracing::error!("{:?}", e);
     } else {
@@ -407,7 +408,13 @@ async fn upload_image_from_import_and_create_media(
     };
 
     let sub_folder = Some(["media/", &claims.id].concat());
-    match backblaze::service::upload_file_with_retry(file_properties, &sub_folder, &state.b2).await
+    match backblaze::service::upload_file_with_retry(
+        file_properties,
+        &sub_folder,
+        &state.b2,
+        &state.client,
+    )
+    .await
     {
         Ok(response) => {
             let b2_download_url = &state.b2.read().await.download_url;
@@ -615,7 +622,9 @@ pub async fn delete_media_by_id(
     }
 
     let file_name = ["media/", &claims.id, "/", &media.id].concat();
-    match backblaze::service::delete_file(&file_name, &media.file_id, &state.b2).await {
+    match backblaze::service::delete_file(&file_name, &media.file_id, &state.b2, &state.client)
+        .await
+    {
         Ok(_) => {
             let dto = media.generate_media_dto;
 

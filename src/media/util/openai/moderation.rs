@@ -9,6 +9,7 @@ use crate::app::{errors::DefaultApiError, models::api_error::ApiError};
 pub async fn check_prompt(
     prompt: &str,
     openai_api_key: &str,
+    client: &reqwest::Client,
 ) -> Result<OpenAiModerationResponse, ApiError> {
     let mut headers = header::HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -17,7 +18,6 @@ pub async fn check_prompt(
         ["Bearer ", openai_api_key].concat().parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let url = "https://api.openai.com/v1/moderations";
     let result = client
         .post(url)

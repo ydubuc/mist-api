@@ -31,22 +31,22 @@ impl B2 {
         self.bucket_id = v;
     }
 
-    pub async fn login(&mut self) -> Result<(), &'static str> {
-        return login(self).await;
+    pub async fn login(&mut self, client: &reqwest::Client) -> Result<(), &'static str> {
+        return login(self, client).await;
     }
 
-    pub async fn check_token(&mut self) -> Result<(), &'static str> {
+    pub async fn check_token(&mut self, client: &reqwest::Client) -> Result<(), &'static str> {
         let has_expired = self.token_time.elapsed().as_secs() > 43200;
 
         if !has_expired {
             return Ok(());
         } else {
-            return self.login().await;
+            return self.login(client).await;
         }
     }
 }
 
-async fn login(b2: &mut B2) -> Result<(), &'static str> {
+async fn login(b2: &mut B2, client: &reqwest::Client) -> Result<(), &'static str> {
     let authorization_token = base64::encode(format!("{}:{}", b2.config.id, b2.config.key));
 
     let mut headers = header::HeaderMap::new();
@@ -56,7 +56,6 @@ async fn login(b2: &mut B2) -> Result<(), &'static str> {
         ["Basic ", &authorization_token].concat().parse().unwrap(),
     );
 
-    let client = reqwest::Client::new();
     let url = format!("https://api.backblazeb2.com/b2api/v2/b2_authorize_account");
 
     let result = client.get(url).headers(headers).send().await;
