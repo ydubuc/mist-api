@@ -11,6 +11,8 @@ pub struct PostMedia {
     pub width: i16,
     pub height: i16,
     pub mime_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<String>,
     pub source: String,
     pub created_at: i64,
 }
@@ -25,6 +27,7 @@ impl PostMedia {
             width: media.width,
             height: media.height,
             mime_type: media.mime_type,
+            seed: media.seed,
             source: media.source,
             created_at: media.created_at,
         }
