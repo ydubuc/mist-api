@@ -22,7 +22,10 @@ pub fn calculate_ink_cost(dto: &GenerateMediaDto, number_generated: Option<u8>) 
     let ink_per_pixel: f64 = base_ink / (512.0 * 512.0);
 
     let number = match number_generated {
-        Some(number_generated) => number_generated,
+        Some(number_generated) => match number_generated > dto.number {
+            true => dto.number,
+            false => number_generated,
+        },
         None => dto.number,
     };
 
