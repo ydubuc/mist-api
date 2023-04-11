@@ -75,7 +75,7 @@ async fn generate_media(
         return Err(stable_horde_request_response_result.unwrap_err());
     };
 
-    let Some(generations) = stable_horde_request_response.generations
+    let Some(mut generations) = stable_horde_request_response.generations
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
@@ -89,13 +89,12 @@ async fn generate_media(
         generations.first().unwrap().worker_id
     );
 
+    generations.retain(|gen| gen.censored != true);
+    generations.truncate(request.generate_media_dto.number.into());
+
     let mut futures = Vec::with_capacity(generations.len());
 
     for generation in &generations {
-        if generation.censored {
-            continue;
-        }
-
         futures.push(upload_image_and_create_media(request, generation, state));
     }
 
