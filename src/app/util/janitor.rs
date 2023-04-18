@@ -34,7 +34,7 @@ async fn cleanup_requests(state: &Arc<AppState>) {
         status: Some(GenerateMediaRequestStatus::Processing.value().to_string()),
         api_v: Some(app::config::API_V),
         sort: Some("created_at,asc".to_string()),
-        cursor: Some(format!("{},0", ten_minutes_ago)),
+        cursor: None,
         limit: None,
     };
 
@@ -49,6 +49,10 @@ async fn cleanup_requests(state: &Arc<AppState>) {
             let mut futures = Vec::new();
 
             for request in &requests {
+                if request.created_at > ten_minutes_ago {
+                    continue;
+                }
+
                 futures.push(media::service::on_generate_media_completion_with_retry(
                     request,
                     &GenerateMediaRequestStatus::Error,
