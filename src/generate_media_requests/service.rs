@@ -27,7 +27,7 @@ pub async fn create_request(
     let sqlx_result = sqlx::query(
         "
         INSERT INTO generate_media_requests (
-            id, user_id, status, generate_media_dto, created_at
+            id, user_id, status, generate_media_dto, api_v, created_at
         )
         VALUES ($1, $2, $3, $4, $5)
         ",
@@ -36,6 +36,7 @@ pub async fn create_request(
     .bind(&generate_media_request.user_id)
     .bind(&generate_media_request.status)
     .bind(&generate_media_request.generate_media_dto)
+    .bind(&generate_media_request.api_v)
     .bind(&generate_media_request.created_at)
     .execute(&mut *tx)
     .await;
