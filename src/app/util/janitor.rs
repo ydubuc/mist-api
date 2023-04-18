@@ -43,7 +43,7 @@ async fn cleanup_requests(state: &Arc<AppState>) {
     {
         Ok(requests) => {
             if requests.len() > 0 {
-                tracing::debug!("received {} request(s) to clean up", requests.len());
+                tracing::info!("received {} request(s) to clean up", requests.len());
             }
 
             let mut futures = Vec::new();
