@@ -15,8 +15,6 @@ use crate::{
 };
 
 pub fn spawn(state: Arc<AppState>) {
-    tracing::debug!("janitor spawned");
-
     task::spawn(async move {
         sleep(Duration::from_secs(600)).await;
         let mut interval = interval(Duration::from_secs(600));
@@ -35,7 +33,7 @@ async fn cleanup_requests(state: &Arc<AppState>) {
         user_id: None,
         status: Some(GenerateMediaRequestStatus::Processing.value().to_string()),
         api_v: Some(app::config::API_V),
-        sort: Some("created_at,desc".to_string()),
+        sort: Some("created_at,asc".to_string()),
         cursor: Some(format!("{},0", ten_minutes_ago)),
         limit: None,
     };
