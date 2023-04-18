@@ -120,6 +120,7 @@ async fn main() {
 
     if role == "main" {
         janitor::spawn(state.clone());
+        tracing::info!("janitor spawned");
     }
 
     // app
