@@ -29,7 +29,7 @@ pub async fn create_request(
         INSERT INTO generate_media_requests (
             id, user_id, status, generate_media_dto, api_v, created_at
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ",
     )
     .bind(&generate_media_request.id)
