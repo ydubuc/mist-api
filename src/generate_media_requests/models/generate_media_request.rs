@@ -16,6 +16,7 @@ pub struct GenerateMediaRequest {
     pub user_id: String,
     pub status: String,
     pub generate_media_dto: sqlx::types::Json<GenerateMediaDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub api_v: Option<i16>,
     pub created_at: i64,
 }
