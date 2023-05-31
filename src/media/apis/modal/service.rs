@@ -178,7 +178,7 @@ async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiErro
         Ok(res) => match res.bytes().await {
             Ok(bytes) => Ok(bytes),
             Err(e) => {
-                tracing::error!(%e);
+                tracing::warn!("get_bytes (1): {:?}", e);
                 Err(ApiError {
                     code: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "Failed to get bytes from response.".to_string(),
@@ -186,7 +186,7 @@ async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiErro
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("get_bytes (2): {:?}", e);
             Err(ApiError {
                 code: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "Failed to get url response.".to_string(),
