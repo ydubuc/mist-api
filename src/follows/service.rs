@@ -32,14 +32,12 @@ pub async fn follow(id: &str, claims: &Claims, pool: &PgPool) -> Result<(), ApiE
     match sqlx_result {
         Ok(_) => Ok(()),
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
+            let Some(db_err) = e.as_database_error() else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
+            let Some(code) = get_code_from_db_err(db_err) else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
@@ -61,8 +59,7 @@ pub async fn get_follows(
     pool: &PgPool,
 ) -> Result<Vec<Follow>, ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 

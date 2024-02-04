@@ -68,8 +68,7 @@ async fn generate_media(
 
     let dalle_generate_images_result =
         dalle_generate_images_with_retry(dto, openai_api_key, &state.client).await;
-    let Ok(dalle_response) = dalle_generate_images_result
-    else {
+    let Ok(dalle_response) = dalle_generate_images_result else {
         return Err(dalle_generate_images_result.unwrap_err());
     };
 
@@ -109,11 +108,10 @@ async fn upload_image_and_create_media(
     dalle_data_base_64_json: &DalleDataBase64Json,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&dalle_data_base_64_json.b64_json)
-    else {
+    let Ok(bytes) = base64::decode(&dalle_data_base_64_json.b64_json) else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
+            message: "Could not decode image.".to_string(),
         });
     };
 

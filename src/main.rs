@@ -6,7 +6,7 @@ use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 #[macro_use]
 extern crate lazy_static;
 
-use app::util::fcm::FcmClient;
+use app::util::fcm::client::fcm_client::FcmClient;
 use axum::{
     error_handling::HandleErrorLayer,
     http::Method,
@@ -20,8 +20,13 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
-    app::{enums::api_status::ApiStatus, envy::Envy, errors::DefaultApiError, util::janitor},
-    media::util::backblaze::b2::{b2::B2, config::Config},
+    app::{
+        enums::api_status::ApiStatus,
+        envy::Envy,
+        errors::DefaultApiError,
+        util::{fcm, janitor},
+    },
+    media::util::backblaze::b2::{self, b2::B2},
 };
 
 mod app;
@@ -41,7 +46,7 @@ mod webhooks;
 pub struct AppState {
     pub pool: PgPool,
     pub client: reqwest::Client,
-    pub fcm_client: FcmClient,
+    pub fcm_client: Arc<RwLock<FcmClient>>,
     pub b2: Arc<RwLock<B2>>,
     pub api_state: Arc<ApiState>,
     pub envy: Envy,
@@ -84,7 +89,21 @@ async fn main() {
         .allow_headers(Any)
         .allow_methods([Method::POST, Method::GET, Method::PATCH, Method::DELETE]);
     let client = reqwest::Client::new();
-    let fcm_client = FcmClient::new();
+
+    let fcm_client_email = envy.fcm_client_email.to_string();
+    let fcm_private_key = envy.fcm_private_key.to_string();
+
+    let mut fcm_client = FcmClient::new(
+        fcm::client::config::Config::new(
+            "mist-de479".to_string(),
+            fcm_client_email,
+            fcm_private_key,
+        ),
+        None,
+    );
+    fcm_client.login().await.expect("failed to login to fcm");
+
+    tracing::info!("logged in to fcm");
 
     let pool = PgPoolOptions::new()
         .max_connections(33)
@@ -99,7 +118,7 @@ async fn main() {
     let backblaze_app_key = envy.backblaze_app_key.to_string();
     let backblaze_bucket_id = envy.backblaze_bucket_id.to_string();
 
-    let mut b2 = B2::new(Config::new(backblaze_key_id, backblaze_app_key));
+    let mut b2 = B2::new(b2::config::Config::new(backblaze_key_id, backblaze_app_key));
     b2.set_bucket_id(backblaze_bucket_id);
     b2.login(&client)
         .await
@@ -110,7 +129,7 @@ async fn main() {
     let state = Arc::new(AppState {
         pool,
         client,
-        fcm_client,
+        fcm_client: Arc::new(RwLock::new(fcm_client)),
         b2: Arc::new(RwLock::new(b2)),
         api_state: Arc::new(ApiState {
             api_status: Arc::new(RwLock::new(ApiStatus::Online.value())),

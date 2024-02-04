@@ -70,16 +70,14 @@ async fn generate_media(
 
     let stable_horde_request_response_result =
         await_request_completion(dto, stable_horde_api_key, &state.client).await;
-    let Ok(stable_horde_request_response) = stable_horde_request_response_result
-    else {
+    let Ok(stable_horde_request_response) = stable_horde_request_response_result else {
         return Err(stable_horde_request_response_result.unwrap_err());
     };
 
-    let Some(mut generations) = stable_horde_request_response.generations
-    else {
+    let Some(mut generations) = stable_horde_request_response.generations else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Stable Horde generated no images.".to_string()
+            message: "Stable Horde generated no images.".to_string(),
         });
     };
 
@@ -128,11 +126,10 @@ async fn upload_image_and_create_media(
     stable_horde_generation: &StableHordeGeneration,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(&stable_horde_generation.img, &state.client).await
-    else {
+    let Ok(bytes) = get_bytes_with_retry(&stable_horde_generation.img, &state.client).await else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to get bytes".to_string()
+            message: "Failed to get bytes".to_string(),
         });
     };
 
@@ -208,8 +205,7 @@ async fn await_request_completion(
     client: &reqwest::Client,
 ) -> Result<StableHordeGetRequestResponse, ApiError> {
     let generate_async_result = generate_async_with_retry(dto, stable_horde_api_key, client).await;
-    let Ok(generate_async_response) = generate_async_result
-    else {
+    let Ok(generate_async_response) = generate_async_result else {
         tracing::error!("await_request_completion failed generate_async_with_retry");
         return Err(generate_async_result.unwrap_err());
     };
@@ -218,9 +214,12 @@ async fn await_request_completion(
 
     sleep(Duration::from_millis(5000)).await;
 
-    let Ok(initial_check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
+    let Ok(initial_check_response) =
+        get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
     else {
-        tracing::error!("await_request_completion failed get_request_by_id_with_retry (initial check)");
+        tracing::error!(
+            "await_request_completion failed get_request_by_id_with_retry (initial check)"
+        );
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -252,7 +251,8 @@ async fn await_request_completion(
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", id, wait_time);
 
-        let Ok(check_response) = get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
+        let Ok(check_response) =
+            get_request_by_id_with_retry(&id, true, stable_horde_api_key, client).await
         else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
@@ -288,7 +288,8 @@ async fn await_request_completion(
         return Err(DefaultApiError::InternalServerError.value());
     }
 
-    let Ok(get_response) = get_request_by_id_with_retry(&id, false, stable_horde_api_key, client).await
+    let Ok(get_response) =
+        get_request_by_id_with_retry(&id, false, stable_horde_api_key, client).await
     else {
         tracing::error!("await_request_completion failed get_request_by_id_with_retry (full)");
         return Err(DefaultApiError::InternalServerError.value());

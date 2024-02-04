@@ -42,8 +42,7 @@ pub async fn edit_user_ink_by_id(
     tx: &mut sqlx::Transaction<'_, Postgres>,
 ) -> Result<(), ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 

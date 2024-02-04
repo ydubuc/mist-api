@@ -120,11 +120,10 @@ async fn upload_image_and_create_media(
     output: &ReceiveWebhookDtoOutput,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(&output.url, &state.client).await
-    else {
+    let Ok(bytes) = get_bytes_with_retry(&output.url, &state.client).await else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to get bytes".to_string()
+            message: "Failed to get bytes".to_string(),
         });
     };
 

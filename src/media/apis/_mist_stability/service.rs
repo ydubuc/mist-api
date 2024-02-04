@@ -67,8 +67,7 @@ async fn generate_media(
 
     let mist_stability_generate_images_result =
         mist_stability_generate_images(dto, input_media, mist_stability_api_key).await;
-    let Ok(mist_response) = mist_stability_generate_images_result
-    else {
+    let Ok(mist_response) = mist_stability_generate_images_result else {
         return Err(mist_stability_generate_images_result.unwrap_err());
     };
 
@@ -108,11 +107,10 @@ async fn upload_image_and_create_media(
     mist_stability_image_data: &MistStabilityImageData,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = base64::decode(&mist_stability_image_data.base64)
-    else {
+    let Ok(bytes) = base64::decode(&mist_stability_image_data.base64) else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Could not decode image.".to_string()
+            message: "Could not decode image.".to_string(),
         });
     };
 

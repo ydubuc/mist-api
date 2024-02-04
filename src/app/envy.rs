@@ -24,11 +24,12 @@ pub struct Envy {
     pub backblaze_app_key: String,
     pub backblaze_bucket_id: String,
 
-    pub fcm_api_key: String,
-
     pub mail_host: String,
     pub mail_user: String,
     pub mail_pass: String,
 
     pub railway_static_url: String,
+
+    pub fcm_client_email: String,
+    pub fcm_private_key: String,
 }

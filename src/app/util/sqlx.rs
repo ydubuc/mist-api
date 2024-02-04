@@ -6,7 +6,7 @@ use sqlx::error::DatabaseError;
 pub struct SqlStateCodes;
 
 impl SqlStateCodes {
-    pub const UNIQUE_VIOLATION: &str = "23505";
+    pub const UNIQUE_VIOLATION: &'static str = "23505";
 }
 
 pub fn get_code_from_db_err(db_err: &dyn DatabaseError) -> Option<String> {

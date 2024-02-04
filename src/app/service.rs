@@ -27,8 +27,7 @@ pub async fn edit_api_state(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Value, ApiError> {
-    let Some(roles) = &claims.roles
-    else {
+    let Some(roles) = &claims.roles else {
         return Err(DefaultApiError::PermissionDenied.value());
     };
 

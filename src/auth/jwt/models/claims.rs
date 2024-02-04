@@ -44,8 +44,9 @@ impl Claims {
     }
 
     pub fn is_mod(&self) -> bool {
-        let Some(roles) = &self.roles
-        else { return false; };
+        let Some(roles) = &self.roles else {
+            return false;
+        };
 
         return roles.contains(&Roles::MODERATOR.to_string());
     }

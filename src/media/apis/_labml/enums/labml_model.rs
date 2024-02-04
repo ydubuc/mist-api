@@ -2,5 +2,5 @@
 pub struct LabmlModel;
 
 impl LabmlModel {
-    pub const LABML: &str = "labml";
+    pub const LABML: &'static str = "labml";
 }

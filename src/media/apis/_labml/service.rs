@@ -66,8 +66,7 @@ async fn generate_media(
     let dto = &request.generate_media_dto;
 
     let response_result = await_request_completion(dto, labml_api_key).await;
-    let Ok(response) = response_result
-    else {
+    let Ok(response) = response_result else {
         return Err(response_result.unwrap_err());
     };
 
@@ -114,9 +113,11 @@ async fn upload_image_and_create_media(
     labml_image: &LabmlImage,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = app::util::reqwest::get_bytes(&labml_image.image).await
-    else {
-        return Err(ApiError { code: StatusCode::INTERNAL_SERVER_ERROR, message: "Failed to get bytes".to_string() })
+    let Ok(bytes) = app::util::reqwest::get_bytes(&labml_image.image).await else {
+        return Err(ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Failed to get bytes".to_string(),
+        });
     };
 
     let uuid = Uuid::new_v4().to_string();
@@ -160,8 +161,7 @@ async fn await_request_completion(
     labml_api_key: &str,
 ) -> Result<LabmlGetRequestResponse, ApiError> {
     let generate_response_result = generate_with_retry(dto, labml_api_key).await;
-    let Ok(generate_response) = generate_response_result
-    else {
+    let Ok(generate_response) = generate_response_result else {
         tracing::error!("await_request_completion failed generate_with_retry");
         return Err(generate_response_result.unwrap_err());
     };
@@ -174,9 +174,10 @@ async fn await_request_completion(
 
     sleep(Duration::from_millis((1000 * eta).into())).await;
 
-    let Ok(initial_check_response) = get_request_by_id_with_retry(&id).await
-    else {
-        tracing::error!("await_request_completion failed get_request_by_id_with_retry (initial check)");
+    let Ok(initial_check_response) = get_request_by_id_with_retry(&id).await else {
+        tracing::error!(
+            "await_request_completion failed get_request_by_id_with_retry (initial check)"
+        );
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -205,8 +206,7 @@ async fn await_request_completion(
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", id, wait_time);
 
-        let Ok(check_response) = get_request_by_id_with_retry(&id).await
-        else {
+        let Ok(check_response) = get_request_by_id_with_retry(&id).await else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;
             continue;

@@ -2,5 +2,5 @@
 pub struct DalleModel;
 
 impl DalleModel {
-    pub const DALLE: &str = "dalle";
+    pub const DALLE: &'static str = "dalle";
 }
