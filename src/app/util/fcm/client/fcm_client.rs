@@ -7,6 +7,7 @@ use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use reqwest::{header, Body, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio_retry::{strategy::FixedInterval, Retry};
 
 use super::config::Config;
 
@@ -116,7 +117,16 @@ impl FcmClient {
         }
     }
 
-    pub async fn send(&self, message: FcmMessage) -> Result<(), String> {
+    pub async fn send_with_retry(&self, message: FcmMessage) -> Result<(), String> {
+        let retry_strategy = FixedInterval::from_millis(5000).take(5);
+
+        Retry::spawn(retry_strategy, || async {
+            self.send(message.clone()).await
+        })
+        .await
+    }
+
+    async fn send(&self, message: FcmMessage) -> Result<(), String> {
         let click_action = match message.click_action {
             Some(click_action) => click_action,
             None => "none".to_string(),
@@ -143,6 +153,7 @@ impl FcmClient {
                 }
             }
         });
+
         let Ok(payload) = serde_json::to_vec(&fcm_message) else {
             return Err(message.token);
         };
@@ -185,7 +196,7 @@ impl FcmClient {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FcmMessage {
     pub token: String,
     pub title: String,

@@ -101,21 +101,12 @@ pub fn send_notifications_to_devices_with_user_id(
                         continue;
                     };
 
-                    futures.push(fcm_client.send(FcmMessage {
+                    futures.push(fcm_client.send_with_retry(FcmMessage {
                         token: messaging_token.to_string(),
                         title: title.to_string(),
                         body: body.to_string(),
                         click_action: click_action.clone(),
                     }));
-
-                    // futures.push(app::util::fcm::fcm::send_notification(
-                    //     messaging_token.to_string(),
-                    //     title.to_string(),
-                    //     body.to_string(),
-                    //     click_action.clone(),
-                    //     state.envy.fcm_api_key.to_string(),
-                    //     state.fcm_client.clone(),
-                    // ));
                 }
 
                 let results = futures::future::join_all(futures).await;
