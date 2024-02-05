@@ -123,6 +123,11 @@ impl FcmClient {
                 "notification": {
                     "title": message.title,
                     "body": message.body,
+                    "click_action": match message.click_action {
+                        Some(click_action) => click_action,
+                        None => "none".to_string(),
+                    },
+                    "sound": "default"
                 }
             }
         });
