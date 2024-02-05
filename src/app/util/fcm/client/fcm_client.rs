@@ -117,17 +117,29 @@ impl FcmClient {
     }
 
     pub async fn send(&self, message: FcmMessage) -> Result<(), String> {
+        let click_action = match message.click_action {
+            Some(click_action) => click_action,
+            None => "none".to_string(),
+        };
+
         let fcm_message = json!({
             "message": {
                 "token": message.token,
                 "notification": {
                     "title": message.title,
                     "body": message.body,
-                    "click_action": match message.click_action {
-                        Some(click_action) => click_action,
-                        None => "none".to_string(),
-                    },
-                    "sound": "default"
+                },
+                "android": {
+                    "notification": {
+                        "click_action": click_action
+                    }
+                },
+                "apns": {
+                    "payload": {
+                        "aps": {
+                            "category": click_action
+                        }
+                    }
                 }
             }
         });
