@@ -134,7 +134,7 @@ impl FcmClient {
 
         let fcm_message = json!({
             "message": {
-                "token": message.token,
+                "tokens": [message.token],
                 "notification": {
                     "title": message.title,
                     "body": message.body,
