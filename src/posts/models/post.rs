@@ -39,12 +39,15 @@ pub struct Post {
 
 impl Post {
     pub fn from_media(media: Vec<Media>) -> Option<Self> {
-        let Some(first_media) = media.first().cloned()
-        else { return None; };
-        let Some(post_id) = first_media.post_id
-        else { return None; };
-        let Some(generate_media_dto) = &first_media.generate_media_dto
-        else { return None; };
+        let Some(first_media) = media.first().cloned() else {
+            return None;
+        };
+        let Some(post_id) = first_media.post_id else {
+            return None;
+        };
+        let Some(generate_media_dto) = &first_media.generate_media_dto else {
+            return None;
+        };
 
         let current_time = time::current_time_in_secs() as i64;
 

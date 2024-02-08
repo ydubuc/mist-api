@@ -57,8 +57,7 @@ pub async fn generate_media(
     // };
 
     let get_generate_media_request_result = get_generate_media_request(dto, claims, state).await;
-    let Ok(generate_media_request) = get_generate_media_request_result
-    else {
+    let Ok(generate_media_request) = get_generate_media_request_result else {
         return Err(get_generate_media_request_result.unwrap_err());
     };
 
@@ -82,8 +81,7 @@ async fn get_input_media_if_any(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Option<Media>, ApiError> {
-    let Some(id) = &dto.input_media_id
-    else {
+    let Some(id) = &dto.input_media_id else {
         return Ok(None);
     };
 
@@ -143,8 +141,7 @@ async fn get_generate_media_request(
         }
     }
 
-    let Ok(mut tx) = state.pool.begin().await
-    else {
+    let Ok(mut tx) = state.pool.begin().await else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Failed to begin transaction.".to_string(),
@@ -230,12 +227,11 @@ async fn on_generate_media_completion(
 ) -> Result<(), ApiError> {
     let uid = &generate_media_request.user_id;
 
-    let Ok(mut tx) = state.pool.begin().await
-    else {
+    let Ok(mut tx) = state.pool.begin().await else {
         tracing::warn!("on_generate_media_completion failed to begin pool transaction");
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to begin pool transaction.".to_string()
+            message: "Failed to begin pool transaction.".to_string(),
         });
     };
 
@@ -399,11 +395,10 @@ async fn upload_image_from_import_and_create_media(
     claims: &Claims,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(size) = imagesize::blob_size(&file_properties.data)
-    else {
+    let Ok(size) = imagesize::blob_size(&file_properties.data) else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to get image size.".to_string()
+            message: "Failed to get image size.".to_string(),
         });
     };
 
@@ -523,8 +518,7 @@ pub async fn get_media(
     pool: &PgPool,
 ) -> Result<Vec<Media>, ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -609,8 +603,7 @@ pub async fn delete_media_by_id(
     state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     let get_media_by_id_result = get_media_by_id_as_anonymous(id, &state.pool).await;
-    let Ok(media) = get_media_by_id_result
-    else {
+    let Ok(media) = get_media_by_id_result else {
         return Err(get_media_by_id_result.unwrap_err());
     };
 
@@ -691,12 +684,11 @@ async fn delete_media_and_refund_ink(
     dto: &GenerateMediaDto,
     pool: &PgPool,
 ) -> Result<(), ApiError> {
-    let Ok(mut tx) = pool.begin().await
-    else {
+    let Ok(mut tx) = pool.begin().await else {
         tracing::error!("delete_media_and_refund_ink failed to begin pool transaction");
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to begin transaction.".to_string()
+            message: "Failed to begin transaction.".to_string(),
         });
     };
 

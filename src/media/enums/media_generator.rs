@@ -2,7 +2,7 @@
 pub struct MediaGenerator;
 
 impl MediaGenerator {
-    pub const MIST: &str = "mist";
-    pub const STABLE_HORDE: &str = "stable_horde";
-    pub const DALLE: &str = "dalle";
+    pub const MIST: &'static str = "mist";
+    pub const STABLE_HORDE: &'static str = "stable_horde";
+    pub const DALLE: &'static str = "dalle";
 }

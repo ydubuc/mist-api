@@ -2,8 +2,8 @@
 pub struct DreamTaskState;
 
 impl DreamTaskState {
-    pub const INPUT: &str = "input";
-    pub const PENDING: &str = "pending";
-    pub const GENERATING: &str = "generating";
-    pub const COMPLETED: &str = "completed";
+    pub const INPUT: &'static str = "input";
+    pub const PENDING: &'static str = "pending";
+    pub const GENERATING: &'static str = "generating";
+    pub const COMPLETED: &'static str = "completed";
 }

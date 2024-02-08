@@ -24,10 +24,13 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         &event.original_app_user_id,
         &event.aliases,
     ) else {
-        tracing::error!("WEBHOOK ERROR<handle_non_renewing_purchase>: NO USER_ID FOUND ({})", event.id);
+        tracing::error!(
+            "WEBHOOK ERROR<handle_non_renewing_purchase>: NO USER_ID FOUND ({})",
+            event.id
+        );
         return Err(ApiError {
             code: StatusCode::NOT_FOUND,
-            message: "Failed to get user_id from event.".to_string()
+            message: "Failed to get user_id from event.".to_string(),
         });
     };
 
@@ -42,8 +45,7 @@ pub async fn handle(webhook: RevenueCatWebhook, state: &AppState) -> Result<(), 
         }
     };
 
-    let Ok(mut tx) = state.pool.begin().await
-    else {
+    let Ok(mut tx) = state.pool.begin().await else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Failed to begin pool transaction.".to_string(),

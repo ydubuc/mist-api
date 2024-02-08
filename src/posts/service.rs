@@ -50,14 +50,12 @@ pub async fn save_post_as_admin(post: Post, pool: &PgPool) -> Result<Post, ApiEr
     match sqlx_result {
         Ok(_) => Ok(post),
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
+            let Some(db_err) = e.as_database_error() else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
+            let Some(code) = get_code_from_db_err(db_err) else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
@@ -82,8 +80,7 @@ pub async fn get_posts(
     pool: &PgPool,
 ) -> Result<Vec<Post>, ApiError> {
     let sql_result = dto.to_sql(claims);
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -177,8 +174,7 @@ pub async fn edit_post_by_id(
     pool: &PgPool,
 ) -> Result<Post, ApiError> {
     let sql_result = dto.to_sql(claims);
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -212,11 +208,13 @@ pub async fn edit_post_by_id(
 
 pub fn spawn_on_delete_post_media(post_id: String, media_id: String, state: Arc<AppState>) {
     tokio::spawn(async move {
-        let Ok(post) = get_post_by_id_as_admin(&post_id, &state.pool).await
-        else { return; };
+        let Ok(post) = get_post_by_id_as_admin(&post_id, &state.pool).await else {
+            return;
+        };
 
-        let Some(media) = post.media
-        else { return; };
+        let Some(media) = post.media else {
+            return;
+        };
 
         if media.0.len() < 1 {
             return;
@@ -287,14 +285,12 @@ pub async fn report_post_by_id(id: &str, claims: &Claims, pool: &PgPool) -> Resu
             Ok(())
         }
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
+            let Some(db_err) = e.as_database_error() else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
+            let Some(code) = get_code_from_db_err(db_err) else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };

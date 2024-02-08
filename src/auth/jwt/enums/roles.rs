@@ -2,6 +2,6 @@
 pub struct Roles;
 
 impl Roles {
-    pub const MODERATOR: &str = "mod";
-    pub const ADMIN: &str = "admin";
+    pub const MODERATOR: &'static str = "mod";
+    pub const ADMIN: &'static str = "admin";
 }

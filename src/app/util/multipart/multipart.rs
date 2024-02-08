@@ -13,7 +13,9 @@ pub async fn get_files_properties(mut multipart: Multipart) -> Vec<FilePropertie
             .content_type()
             .unwrap_or("application/octet-stream")
             .to_string();
-        let Ok(data) = field.bytes().await else { continue };
+        let Ok(data) = field.bytes().await else {
+            continue;
+        };
 
         let properties = FileProperties {
             id: Uuid::new_v4().to_string(),
