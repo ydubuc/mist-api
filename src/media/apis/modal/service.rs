@@ -120,11 +120,10 @@ async fn upload_image_and_create_media(
     output: &ReceiveWebhookDtoOutput,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(&output.url, &state.client).await
-    else {
+    let Ok(bytes) = get_bytes_with_retry(&output.url, &state.client).await else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to get bytes".to_string()
+            message: "Failed to get bytes".to_string(),
         });
     };
 
@@ -178,7 +177,7 @@ async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiErro
         Ok(res) => match res.bytes().await {
             Ok(bytes) => Ok(bytes),
             Err(e) => {
-                tracing::error!(%e);
+                tracing::warn!("get_bytes (1): {:?}", e);
                 Err(ApiError {
                     code: StatusCode::INTERNAL_SERVER_ERROR,
                     message: "Failed to get bytes from response.".to_string(),
@@ -186,7 +185,7 @@ async fn get_bytes(url: &str, client: &reqwest::Client) -> Result<Bytes, ApiErro
             }
         },
         Err(e) => {
-            tracing::error!(%e);
+            tracing::warn!("get_bytes (2): {:?}", e);
             Err(ApiError {
                 code: StatusCode::INTERNAL_SERVER_ERROR,
                 message: "Failed to get url response.".to_string(),

@@ -2,7 +2,7 @@
 pub struct PepperType;
 
 impl PepperType {
-    pub const EDIT_PASSWORD: &str = "edit-password";
-    pub const EDIT_EMAIL: &str = "edit-email";
-    pub const VERIFY_EMAIL: &str = "verify-email";
+    pub const EDIT_PASSWORD: &'static str = "edit-password";
+    pub const EDIT_EMAIL: &'static str = "edit-email";
+    pub const VERIFY_EMAIL: &'static str = "verify-email";
 }

@@ -67,7 +67,8 @@ pub async fn login(dto: &LoginDto, state: &Arc<AppState>) -> Result<AccessInfo, 
                 return Err(AuthApiError::BadLogin.value());
             }
 
-            let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
+            let Ok(matches) =
+                hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
             else {
                 return Err(AuthApiError::BadLogin.value());
             };
@@ -104,8 +105,7 @@ pub async fn request_email_update_mail(
     state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
     let user_result = users::service::get_user_by_id(&claims.id, claims, &state.pool).await;
-    let Ok(user) = user_result
-    else {
+    let Ok(user) = user_result else {
         return Err(user_result.unwrap_err());
     };
 
@@ -253,7 +253,8 @@ pub async fn delete_account(
 ) -> Result<(), ApiError> {
     match users::service::get_user_by_id_as_admin(&claims.id, pool).await {
         Ok(user) => {
-            let Ok(matches) = hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
+            let Ok(matches) =
+                hasher::verify(dto.password.to_string(), user.password_hash.to_string()).await
             else {
                 return Err(DefaultApiError::InternalServerError.value());
             };

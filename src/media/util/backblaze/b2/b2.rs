@@ -1,7 +1,8 @@
-use crate::Config;
 use reqwest::header;
 use serde::Deserialize;
 use std::time::Instant;
+
+use super::config::Config;
 
 #[derive(Debug, Clone)]
 pub struct B2 {
@@ -17,13 +18,13 @@ pub struct B2 {
 impl B2 {
     pub fn new(config: Config) -> B2 {
         B2 {
-            token_time: Instant::now(),
             config,
             account_id: String::new(),
-            authorization_token: String::new(),
             api_url: String::new(),
             download_url: String::new(),
             bucket_id: String::new(),
+            authorization_token: String::new(),
+            token_time: Instant::now(),
         }
     }
 
@@ -71,9 +72,9 @@ async fn login(b2: &mut B2, client: &reqwest::Client) -> Result<(), &'static str
                 match b2_authorize_response_result {
                     Ok(b2_authorize_response) => {
                         b2.account_id = b2_authorize_response.account_id;
-                        b2.authorization_token = b2_authorize_response.authorization_token;
                         b2.api_url = b2_authorize_response.api_url;
                         b2.download_url = b2_authorize_response.download_url;
+                        b2.authorization_token = b2_authorize_response.authorization_token;
                         b2.token_time = Instant::now();
 
                         return Ok(());

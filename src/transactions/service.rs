@@ -15,11 +15,10 @@ pub async fn handle_webhook(
     webhook: RevenueCatWebhook,
     state: &Arc<AppState>,
 ) -> Result<(), ApiError> {
-    let Some(event_type) = webhook.event.get("type")
-    else {
+    let Some(event_type) = webhook.event.get("type") else {
         return Err(ApiError {
             code: StatusCode::BAD_REQUEST,
-            message: "Event has no type.".to_string()
+            message: "Event has no type.".to_string(),
         });
     };
 

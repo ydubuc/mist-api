@@ -72,16 +72,14 @@ async fn generate_media(
 
     let replicate_predictions_response_result =
         await_request_completion(dto, replicate_api_key, &state.client).await;
-    let Ok(replicate_predictions_response) = replicate_predictions_response_result
-    else {
+    let Ok(replicate_predictions_response) = replicate_predictions_response_result else {
         return Err(replicate_predictions_response_result.unwrap_err());
     };
 
-    let Some(urls) = replicate_predictions_response.output
-    else {
+    let Some(urls) = replicate_predictions_response.output else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Replicate generated no images.".to_string()
+            message: "Replicate generated no images.".to_string(),
         });
     };
 
@@ -127,15 +125,21 @@ async fn generate_media(
 }
 
 fn get_seed_from_logs(logs: Option<String>) -> Option<String> {
-    let Some(logs) = logs else { return None; };
+    let Some(logs) = logs else {
+        return None;
+    };
 
     let mut splits = logs.split("\n");
 
-    let Some(first) = splits.next() else { return None; };
+    let Some(first) = splits.next() else {
+        return None;
+    };
 
     let prefix = "Using seed: ";
     if first.starts_with(prefix) {
-        let Some(seed) = first.strip_prefix(prefix) else { return None;};
+        let Some(seed) = first.strip_prefix(prefix) else {
+            return None;
+        };
         return Some(seed.to_string());
     } else {
         return None;
@@ -148,11 +152,16 @@ async fn upload_image_and_create_media(
     seed: Option<&str>,
     state: &Arc<AppState>,
 ) -> Result<Media, ApiError> {
-    let Ok(bytes) = get_bytes_with_retry(replicate_output_url, &state.envy.replicate_api_key, &state.client).await
+    let Ok(bytes) = get_bytes_with_retry(
+        replicate_output_url,
+        &state.envy.replicate_api_key,
+        &state.client,
+    )
+    .await
     else {
         return Err(ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Failed to get bytes".to_string()
+            message: "Failed to get bytes".to_string(),
         });
     };
 
@@ -247,8 +256,7 @@ async fn await_request_completion(
 ) -> Result<ReplicatePredictionsResponse, ApiError> {
     let replicate_predictions_response_result =
         create_prediction_with_retry(dto, replicate_api_key, client).await;
-    let Ok(replicate_predictions_response) = replicate_predictions_response_result
-    else {
+    let Ok(replicate_predictions_response) = replicate_predictions_response_result else {
         tracing::error!("await_request_completion failed create_prediction_with_retry");
         return Err(replicate_predictions_response_result.unwrap_err());
     };
@@ -271,7 +279,8 @@ async fn await_request_completion(
         sleep(Duration::from_secs(wait_time.into())).await;
         tracing::debug!("checking request {} after {}", request.id, wait_time);
 
-        let Ok(check_response) = get_prediction_by_id_with_retry(&request.id, replicate_api_key, client).await
+        let Ok(check_response) =
+            get_prediction_by_id_with_retry(&request.id, replicate_api_key, client).await
         else {
             tracing::error!("await_request_completion failed get_request_by_id_with_retry");
             encountered_error = true;

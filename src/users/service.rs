@@ -26,8 +26,7 @@ use super::{
 };
 
 pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<User, ApiError> {
-    let Ok(hash) = hasher::hash(dto.password.to_string()).await
-    else {
+    let Ok(hash) = hasher::hash(dto.password.to_string()).await else {
         return Err(DefaultApiError::InternalServerError.value());
     };
 
@@ -62,14 +61,12 @@ pub async fn create_user_as_admin(dto: &RegisterDto, pool: &PgPool) -> Result<Us
     match sqlx_result {
         Ok(_) => Ok(user),
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
+            let Some(db_err) = e.as_database_error() else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
+            let Some(code) = get_code_from_db_err(db_err) else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
@@ -94,8 +91,7 @@ pub async fn get_users(
     pool: &PgPool,
 ) -> Result<Vec<User>, ApiError> {
     let sql_result = dto.to_sql(claims);
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -239,8 +235,7 @@ pub async fn edit_user_by_id(
     }
 
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -336,8 +331,7 @@ pub async fn edit_user_password_by_id_as_admin(
     dto: &EditPasswordDto,
     pool: &PgPool,
 ) -> Result<(), ApiError> {
-    let Ok(hash) = hasher::hash(dto.password.to_string()).await
-    else {
+    let Ok(hash) = hasher::hash(dto.password.to_string()).await else {
         return Err(DefaultApiError::InternalServerError.value());
     };
 

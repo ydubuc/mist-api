@@ -5,10 +5,10 @@ use sqlx::PgPool;
 
 use crate::{
     app::{
-        self,
         errors::DefaultApiError,
         models::api_error::ApiError,
         util::{
+            fcm::{self, client::fcm_client::FcmMessage},
             sqlx::{get_code_from_db_err, SqlStateCodes},
             time,
         },
@@ -50,14 +50,12 @@ pub async fn create_device_as_admin(user: &User, pool: &PgPool) -> Result<Device
     match sqlx_result {
         Ok(_) => Ok(device),
         Err(e) => {
-            let Some(db_err) = e.as_database_error()
-            else {
+            let Some(db_err) = e.as_database_error() else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
 
-            let Some(code) = get_code_from_db_err(db_err)
-            else {
+            let Some(code) = get_code_from_db_err(db_err) else {
                 tracing::error!(%e);
                 return Err(DefaultApiError::InternalServerError.value());
             };
@@ -94,22 +92,21 @@ pub fn send_notifications_to_devices_with_user_id(
     tokio::spawn(async move {
         match get_devices_as_admin(&dto, &state.pool).await {
             Ok(devices) => {
+                fcm::service::check_token(&state.fcm_client).await;
+                let fcm_client = state.fcm_client.read().await;
                 let mut futures = Vec::new();
 
                 for device in devices {
-                    let Some(messaging_token) = device.messaging_token
-                    else {
+                    let Some(messaging_token) = device.messaging_token else {
                         continue;
                     };
 
-                    futures.push(app::util::fcm::send_notification(
-                        messaging_token.to_string(),
-                        title.to_string(),
-                        body.to_string(),
-                        click_action.clone(),
-                        state.envy.fcm_api_key.to_string(),
-                        state.fcm_client.clone(),
-                    ));
+                    futures.push(fcm_client.send_with_retry(FcmMessage {
+                        token: messaging_token.to_string(),
+                        title: title.to_string(),
+                        body: body.to_string(),
+                        click_action: click_action.clone(),
+                    }));
                 }
 
                 let results = futures::future::join_all(futures).await;
@@ -156,8 +153,7 @@ pub async fn get_devices_as_admin(
     pool: &PgPool,
 ) -> Result<Vec<Device>, ApiError> {
     let sql_result = dto.to_sql();
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
@@ -217,8 +213,7 @@ pub async fn edit_device_by_id(
     pool: &PgPool,
 ) -> Result<Device, ApiError> {
     let sql_result = dto.to_sql(claims);
-    let Ok(sql) = sql_result
-    else {
+    let Ok(sql) = sql_result else {
         return Err(sql_result.err().unwrap());
     };
 
